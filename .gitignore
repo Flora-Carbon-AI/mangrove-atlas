@@ -41,8 +41,9 @@ yarn-error.log*
 # copied from node_modules by scripts/copy-maplibre-worker.mjs
 /public/vendor/
 
-# vercel
+# vercel / netlify
 .vercel
+.netlify
 
 # typescript
 *.tsbuildinfo

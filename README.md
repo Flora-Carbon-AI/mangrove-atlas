@@ -1,5 +1,7 @@
 # Mangrove Atlas
 
+**Live:** https://mangrove-atlas-floracarbon.netlify.app
+
 An open-source map of where mangroves grew, year by year. Built by [Flora Carbon AI](https://floracarbon.ai) for blue-carbon project developers, researchers and coastal communities.
 
 Mangrove Atlas works like a small, self-hostable [Global Mangrove Watch](https://www.globalmangrovewatch.org/). You can:
@@ -102,7 +104,7 @@ All endpoints return JSON. Errors come back as `{ "error": "…" }`.
 
 ## Deploying
 
-The app is a standard Next.js 16 app and deploys to Vercel, Azure App Service, Render or any Node host. Set the `GEE_*` variables in the host's environment, not in a committed file. `npm run build` copies MapLibre's web worker into `public/vendor/` before building.
+The live site runs on Netlify (`netlify.toml` is included; Netlify's Next.js runtime turns `/api/*` into functions). Deploy your own with `npx netlify-cli deploy --build --prod`. It also deploys to Vercel, Azure App Service, Render or any Node host. Set the `GEE_*` variables in the host's environment, not in a committed file. `npm run build` copies MapLibre's web worker into `public/vendor/` before building.
 
 ## Contributing
 
