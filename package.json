@@ -2,16 +2,25 @@
   "name": "mangrove-atlas",
   "version": "0.1.0",
   "private": true,
+  "description": "Open-source mangrove history map by Flora Carbon AI, built on Global Mangrove Watch, Google Earth Engine and Microsoft Planetary Computer.",
+  "license": "MIT",
   "scripts": {
+    "postinstall": "node scripts/copy-maplibre-worker.mjs",
+    "predev": "node scripts/copy-maplibre-worker.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-maplibre-worker.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/earthengine": "^1.7.53",
+    "maplibre-gl": "^6.19.0",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",

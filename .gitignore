@@ -30,8 +30,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files: only the example is committed
 .env*
+!.env.example
+
+# Earth Engine service account keys
+*service-account*.json
+*-key.json
+
+# copied from node_modules by scripts/copy-maplibre-worker.mjs
+/public/vendor/
 
 # vercel
 .vercel
