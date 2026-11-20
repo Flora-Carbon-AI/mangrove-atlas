@@ -76,39 +76,73 @@ function remember<T>(key: string, ttl: number, fn: () => Promise<T>): Promise<T>
   return value;
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`Planetary Computer ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  return res.json() as Promise<T>;
+async function postJson<T>(url: string, body: unknown, attempts = 3): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    if (res.ok) return res.json() as Promise<T>;
+    // The public API occasionally returns 5xx / 429 under load; back off and retry.
+    if ((res.status >= 500 || res.status === 429) && attempt < attempts) {
+      await new Promise((r) => setTimeout(r, 400 * attempt));
+      continue;
+    }
+    throw new Error(`Planetary Computer ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+}
+
+async function stacSearch(query: Record<string, unknown>): Promise<StacItem[]> {
+  const items: StacItem[] = [];
+  let body: Record<string, unknown> | null = {
+    ...query,
+    limit: 1000,
+    fields: { include: ["id", "bbox"], exclude: ["assets", "properties", "links"] },
+  };
+  // Follow STAC pagination.
+  for (let page = 0; body && page < 20; page++) {
+    const res: { features: StacItem[]; links?: { rel: string; body?: Record<string, unknown> }[] } =
+      await postJson(`${STAC}/search`, body);
+    items.push(...res.features.map((f) => ({ id: f.id, bbox: f.bbox })));
+    const next = res.links?.find((l) => l.rel === "next");
+    body = next?.body ?? null;
+  }
+  return items;
 }
 
 /** STAC items for a collection and year that intersect a bbox. */
 export function searchItems(collection: string, year: number, bbox: BBox): Promise<StacItem[]> {
   const key = `items:${collection}:${year}:${bbox.map((v) => v.toFixed(3)).join(",")}`;
-  return remember(key, ONE_DAY, async () => {
-    const items: StacItem[] = [];
-    let body: Record<string, unknown> | null = {
-      collections: [collection],
-      datetime: `${year}-01-01T00:00:00Z/${year}-12-31T23:59:59Z`,
-      bbox,
-      limit: 250,
-      fields: { include: ["id", "bbox"], exclude: ["assets", "properties", "links"] },
-    };
-    // Follow STAC pagination; WorldCover has thousands of 3° items.
-    for (let page = 0; body && page < 20; page++) {
-      const res: { features: StacItem[]; links?: { rel: string; body?: Record<string, unknown> }[] } =
-        await postJson(`${STAC}/search`, body);
-      items.push(...res.features.map((f) => ({ id: f.id, bbox: f.bbox })));
-      const next = res.links?.find((l) => l.rel === "next");
-      body = next?.body ?? null;
-    }
-    return items;
-  });
+  return remember(key, ONE_DAY, () =>
+    stacSearch({ collections: [collection], datetime: `${year}-01-01T00:00:00Z/${year}-12-31T23:59:59Z`, bbox }),
+  );
+}
+
+/**
+ * Every CCI item in the mangrove belt, for all years, fetched in one search and
+ * cached: ~16 items × 29 years. Per-year searches were slow and timed out.
+ */
+const allItems = new Map<string, { at: number; items: StacItem[] }>();
+
+async function cciItems(collection: string, year: number): Promise<StacItem[]> {
+  const cached = allItems.get(collection);
+  if (cached && Date.now() - cached.at < ONE_DAY) {
+    return cached.items.filter((it) => it.id.includes(`-P1Y-${year}-`));
+  }
+  // Warm the all-years list in the background (it takes several seconds) and
+  // answer this request with a quicker single-year search.
+  remember(`all:${collection}`, ONE_DAY, () => stacSearch({ collections: [collection], bbox: MANGROVE_BELT }))
+    .then((items) => allItems.set(collection, { at: Date.now(), items }))
+    .catch((err) => console.error("[mpc] warming item list failed:", (err as Error).message));
+  return searchItems(collection, year, MANGROVE_BELT);
+}
+
+/** Items for one year intersecting a bbox, using the cheapest lookup per collection. */
+async function itemsFor(c: MpcConfig, year: number, bbox: BBox): Promise<StacItem[]> {
+  if (c.tiling === "item") return (await cciItems(c.collection, year)).filter((it) => intersectBBox(bbox, it.bbox));
+  return searchItems(c.collection, year, bbox);
 }
 
 /** Registers (once) a mosaic of one year's items and returns its search id. */
@@ -154,7 +188,7 @@ export async function mpcExtentSources(id: DatasetId, year: number): Promise<Til
       },
     ];
   }
-  const items = await searchItems(c.collection, year, MANGROVE_BELT);
+  const items = await cciItems(c.collection, year);
   return items.map((item) => ({
     tiles: [
       `${DATA}/item/tiles/WebMercatorQuad/{z}/{x}/{y}@2x.png?item=${encodeURIComponent(item.id)}&${renderParams(c)}`,
@@ -188,7 +222,7 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
 export async function mpcAreaByYear(id: DatasetId, bbox: BBox, years: number[]): Promise<Record<string, number>> {
   const c = mpcConfig(id);
   const results = await pool(years, 6, async (year) => {
-    const items = await searchItems(c.collection, year, bbox);
+    const items = await itemsFor(c, year, bbox);
     let km2 = 0;
     for (const item of items) {
       const part = intersectBBox(bbox, item.bbox);
@@ -208,14 +242,8 @@ export async function mpcPointHistory(id: DatasetId, lon: number, lat: number, y
   const c = mpcConfig(id);
   const eps = 1e-6;
   const point: BBox = [lon - eps, lat - eps, lon + eps, lat + eps];
-  const contains = (b: BBox) => lon >= b[0] && lon < b[2] && lat >= b[1] && lat < b[3];
-  const results = await pool(years, 6, async (year) => {
-    // CCI has a few large items per year: reuse the cached list. WorldCover
-    // has thousands of small ones, so search by point (cached, bounded).
-    const item =
-      c.tiling === "item"
-        ? (await searchItems(c.collection, year, MANGROVE_BELT)).find((it) => contains(it.bbox))
-        : (await searchItems(c.collection, year, point))[0];
+  const results = await pool(years, 8, async (year) => {
+    const [item] = await itemsFor(c, year, point);
     if (!item) return [String(year), null] as const;
     const url = `${DATA}/item/point/${lon},${lat}?item=${encodeURIComponent(item.id)}&collection=${c.collection}&assets=${c.asset}&expression=${encodeURIComponent(c.expression)}&asset_as_band=true`;
     const res = await fetch(url, { cache: "no-store" });
