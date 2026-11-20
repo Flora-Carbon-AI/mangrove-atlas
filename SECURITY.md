@@ -12,17 +12,16 @@ Include what you found, how to reproduce it, and the impact you expect. We aim t
 
 In scope:
 
-- The application code in this repository: the Next.js app and API routes under `src/app/api`.
-- How the app handles Earth Engine credentials, and the server-side requests it makes.
+- The application code in this repository: the Next.js app, the API routes under `src/app/api` and the data pipeline under `pipeline/`.
+- The GitHub Actions workflows, including the one that publishes the data to Cloudflare R2.
 - The live deployment at https://mangrove-atlas-floracarbon.netlify.app.
 
 Out of scope:
 
-- Vulnerabilities in Google Earth Engine, Microsoft Planetary Computer, OpenFreeMap or Esri services. Report those to the providers.
+- Vulnerabilities in Microsoft Planetary Computer, Cloudflare, OpenFreeMap, Esri or Zenodo. Report those to the providers.
 - Denial of service by sending large numbers of requests.
 
-## How credentials are handled
+## Credentials
 
-- Earth Engine credentials live only in server environment variables, which are read in `src/lib/server/ee.ts`.
-- They are never sent to the browser or committed to the repository.
-- Pull requests from forks don't get a deploy preview with these settings until a maintainer approves the build.
+- The app itself uses no API keys or secrets. The map data is a public static file, and the Planetary Computer APIs are public.
+- The only secrets are the Cloudflare R2 upload credentials, used by the "Build mangrove tiles" workflow. They are GitHub repository secrets, available only to manually started runs, never to pull requests.

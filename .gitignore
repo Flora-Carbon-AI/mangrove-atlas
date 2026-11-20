@@ -34,7 +34,7 @@ yarn-error.log*
 .env*
 !.env.example
 
-# Earth Engine service account keys
+# Credential files (the app needs none; keep them out of git)
 *service-account*.json
 *-key.json
 
