@@ -502,6 +502,12 @@ export default function Atlas() {
             includeInactive={includeInactive}
             onIncludeInactive={setIncludeInactive}
             visible={visibleProjects}
+            onSelect={(id) => {
+              const p = projectsData?.projects.find((x) => x.id === id);
+              if (!p) return;
+              onProjectPick({ id });
+              zoomToProject(p);
+            }}
           />
 
           <section aria-labelledby="h-places">

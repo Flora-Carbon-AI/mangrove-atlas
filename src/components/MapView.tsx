@@ -22,7 +22,8 @@ import type { LayersResponse } from "@/lib/types";
 import { applyOverlay, basemapStyle, setOverlayOpacity, switchBasemap } from "./mapStyle";
 import { applyProjects, PROJECT_CLICK_LAYERS, type ProjectFeatures } from "./projectsLayer";
 
-export type ProjectPick = { id: string } | { country: string };
+/** One project, several whose markers overlap, or a country's country-only projects. */
+export type ProjectPick = { id: string } | { ids: string[] } | { country: string };
 
 /** Clicks on a project marker open the project; anywhere else reads the point history. */
 function wireClicks(
@@ -43,9 +44,13 @@ function wireClicks(
     );
   };
   map.on("click", (e) => {
-    const f = hit(e.point)[0];
-    if (f?.properties?.id) handlers.current.onProjectPick({ id: String(f.properties.id) });
-    else if (f?.properties?.country) handlers.current.onProjectPick({ country: String(f.properties.country) });
+    const hits = hit(e.point);
+    // Projects that name the same place share a marker position: offer all of them.
+    const ids = [...new Set(hits.map((f) => f.properties?.id).filter(Boolean).map(String))];
+    const country = hits.find((f) => f.properties?.country)?.properties?.country;
+    if (ids.length === 1) handlers.current.onProjectPick({ id: ids[0] });
+    else if (ids.length > 1) handlers.current.onProjectPick({ ids });
+    else if (country) handlers.current.onProjectPick({ country: String(country) });
     else handlers.current.onPick(e.lngLat.lng, e.lngLat.lat);
   });
   map.on("mousemove", (e) => {

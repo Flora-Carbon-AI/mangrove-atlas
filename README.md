@@ -61,12 +61,12 @@ Solid amber dots are boundaries; ringed dots are approximate. Never use an appro
 
 ```bash
 pip install -r pipeline/projects/requirements.txt
-python pipeline/projects/build_projects.py --vrod vrod.xlsx --renoster <boundaries dir> \
+python pipeline/projects/build_projects.py --vrod vrod.xlsx --vrod-release v2026-08 --renoster <boundaries dir> \
   --geonames <geonames dir> --ne <natural earth dir> \
   --curation pipeline/projects/curation.json --out public/projects/blue-carbon-projects.json
 ```
 
-Check the summary it prints. Any project listed as `UNRESOLVED` fell back to its country: add a location for it in `curation.json` if its title names a place.
+Set `--vrod-release` to the release you downloaded; it is recorded in the output file. Update the release named in this README to match. Check the summary it prints. Any project listed as `UNRESOLVED` fell back to its country: add a location for it in `curation.json` if its title names a place.
 
 ## Quick start
 

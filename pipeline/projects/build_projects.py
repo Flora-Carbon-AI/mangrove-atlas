@@ -19,7 +19,7 @@ Every project gets a location with an explicit precision:
   country   only the country is known; the map groups these per country
 
 Usage:
-  python build_projects.py --vrod vrod.xlsx --renoster DIR --geonames DIR --ne DIR \
+  python build_projects.py --vrod vrod.xlsx --vrod-release v2026-08 --renoster DIR --geonames DIR --ne DIR \
       --curation curation.json --out ../../public/projects/blue-carbon-projects.json
 """
 
@@ -284,6 +284,9 @@ def round_coords(geom):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--vrod", required=True, type=Path)
+    ap.add_argument(
+        "--vrod-release", required=True, help="VROD release of the --vrod file, as Berkeley names it, e.g. v2026-08"
+    )
     ap.add_argument("--renoster", required=True, type=Path)
     ap.add_argument("--geonames", required=True, type=Path)
     ap.add_argument("--ne", required=True, type=Path)
@@ -393,11 +396,11 @@ def main():
         )
 
     out = {
-        "generated": "from Berkeley VROD v2026-08",
+        "generated": f"from Berkeley VROD {args.vrod_release}",
         "count": len(projects),
         "sources": [
             {
-                "name": "Voluntary Registry Offsets Database (v2026-08)",
+                "name": f"Voluntary Registry Offsets Database ({args.vrod_release})",
                 "by": "Berkeley Carbon Trading Project, Goldman School of Public Policy, UC Berkeley",
                 "license": "CC BY 4.0",
                 "url": "https://gspp.berkeley.edu/berkeley-carbon-trading-project/offsets-database",

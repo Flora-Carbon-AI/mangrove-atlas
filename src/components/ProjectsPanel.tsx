@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { PRECISION_LABEL, STATUS_LABEL, type Project, type ProjectsData } from "@/lib/projects";
 import type { ProjectPick } from "./MapView";
 
@@ -13,11 +14,29 @@ interface SectionProps {
   includeInactive: boolean;
   onIncludeInactive: (v: boolean) => void;
   visible: Project[];
+  /** Opens a project chosen from the list (the keyboard route to every project). */
+  onSelect: (id: string) => void;
 }
 
 /** Panel section: toggle, counts, legend, coverage and sources. */
-export function ProjectsSection({ data, error, show, onShow, includeInactive, onIncludeInactive, visible }: SectionProps) {
+export function ProjectsSection({
+  data,
+  error,
+  show,
+  onShow,
+  includeInactive,
+  onIncludeInactive,
+  visible,
+  onSelect,
+}: SectionProps) {
   const registries = [...new Set(visible.map((p) => p.registry))].sort();
+  // Choosing and opening are separate steps: arrow keys on a closed <select> fire
+  // "change" for every option in some browsers, which would fly the map each time.
+  const [chosen, setChosen] = useState("");
+  const byCountry = new Map<string, Project[]>();
+  for (const p of [...visible].sort((a, b) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name))) {
+    byCountry.set(p.country, [...(byCountry.get(p.country) ?? []), p]);
+  }
   return (
     <section aria-labelledby="h-projects">
       <h2 id="h-projects">Blue carbon projects</h2>
@@ -33,8 +52,34 @@ export function ProjectsSection({ data, error, show, onShow, includeInactive, on
       {data && (
         <>
           <p className="note">
-            {visible.length} projects across {registries.join(", ")}. Click a marker for details.
+            {visible.length} projects across {registries.join(", ")}. Click a marker for details, or pick one here.
           </p>
+          <form
+            className="field"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (chosen) onSelect(chosen);
+            }}
+          >
+            <label htmlFor="project-pick">Find a project</label>
+            <div className="field-row">
+              <select id="project-pick" value={chosen} onChange={(e) => setChosen(e.target.value)}>
+                <option value="">Choose a project…</option>
+                {[...byCountry].map(([country, list]) => (
+                  <optgroup key={country} label={country}>
+                    {list.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <button type="submit" className="primary" disabled={!chosen || !visible.some((p) => p.id === chosen)}>
+                Open
+              </button>
+            </div>
+          </form>
           <ul className="project-legend">
             <li>
               <i className="pl-exact" aria-hidden="true" />
@@ -78,32 +123,59 @@ interface CardProps {
   onZoom: (p: Project) => void;
 }
 
-/** Floating card for a selected project, or for the country-only projects of a country. */
+function ProjectList({ list, onSelect }: { list: Project[]; onSelect: (id: string) => void }) {
+  return (
+    <ul className="project-list">
+      {list.map((p) => (
+        <li key={p.id}>
+          <button type="button" onClick={() => onSelect(p.id)}>
+            {p.name}
+            <span>
+              {p.registry} {p.id}, {STATUS_LABEL[p.statusGroup].toLowerCase()}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Floating card for a selected project, for projects whose markers overlap,
+ * or for the country-only projects of a country.
+ */
 export function ProjectCard({ pick, data, visible, onClose, onSelect, onZoom }: CardProps) {
-  if ("country" in pick) {
-    const list = visible.filter((p) => p.country === pick.country && p.location.precision === "country");
+  // When the card's content changes (a list item was chosen, say), the focused
+  // button disappears: move focus to the new heading so keyboard users keep their place.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+  }, [pick]);
+
+  if ("country" in pick || "ids" in pick) {
+    const list =
+      "country" in pick
+        ? visible.filter((p) => p.country === pick.country && p.location.precision === "country")
+        : pick.ids.map((id) => data.projects.find((p) => p.id === id)).filter((p): p is Project => !!p);
+    const title = "country" in pick ? pick.country : `${list.length} projects here`;
     return (
-      <div className="project-card" role="dialog" aria-label={`Projects in ${pick.country}`}>
+      <div
+        className="project-card"
+        role="dialog"
+        aria-label={"country" in pick ? `Projects in ${pick.country}` : title}
+      >
         <button type="button" className="card-close" onClick={onClose} aria-label="Close">
           ×
         </button>
-        <h2>{pick.country}</h2>
+        <h2 ref={headingRef} tabIndex={-1}>
+          {title}
+        </h2>
         <p className="note">
-          {list.length} project{list.length === 1 ? "" : "s"} whose exact site isn&apos;t in open data. The marker sits at
-          the country&apos;s centre.
+          {"country" in pick
+            ? `${list.length} project${list.length === 1 ? "" : "s"} whose exact site isn't in open data. The marker sits at the country's centre.`
+            : "These markers overlap, often because the projects name the same place. Choose one."}
         </p>
-        <ul className="project-list">
-          {list.map((p) => (
-            <li key={p.id}>
-              <button type="button" onClick={() => onSelect(p.id)}>
-                {p.name}
-                <span>
-                  {p.registry} {p.id}, {STATUS_LABEL[p.statusGroup].toLowerCase()}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <ProjectList list={list} onSelect={onSelect} />
       </div>
     );
   }
@@ -118,7 +190,9 @@ export function ProjectCard({ pick, data, visible, onClose, onSelect, onZoom }: 
       <p className="card-kicker">
         {p.registry} {p.id}
       </p>
-      <h2>{p.name}</h2>
+      <h2 ref={headingRef} tabIndex={-1}>
+        {p.name}
+      </h2>
       <dl>
         <dt>Status</dt>
         <dd>
