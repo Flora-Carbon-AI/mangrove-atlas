@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BASEMAPS, COLORS, DATASET_ORDER, DATASETS, PLACES, type Basemap, type BBox, type DatasetId } from "@/lib/datasets";
 import { bboxAreaKm2, formatArea } from "@/lib/geo";
 import { areaByYear, GMW_MAX_ZOOM, GMW_TILE, gmwTileUrl, pointYears } from "@/lib/gmw";
@@ -90,6 +90,18 @@ export default function Atlas() {
   const [fly, setFly] = useState<FlyTarget | null>(null);
   // null = layout default: open on desktop, closed on phones (decided in CSS).
   const [panelOpen, setPanelOpen] = useState<boolean | null>(null);
+  const showPanelRef = useRef<HTMLButtonElement>(null);
+  const hidePanelRef = useRef<HTMLButtonElement>(null);
+
+  // The button that was clicked disappears, so hand focus to its counterpart.
+  const showPanel = () => {
+    setPanelOpen(true);
+    requestAnimationFrame(() => hidePanelRef.current?.focus());
+  };
+  const hidePanel = () => {
+    setPanelOpen(false);
+    requestAnimationFrame(() => showPanelRef.current?.focus());
+  };
 
   const jumpTo = (center: [number, number], zoom: number) => {
     setFly((f) => ({ center, zoom, key: (f?.key ?? 0) + 1 }));
@@ -208,7 +220,7 @@ export default function Atlas() {
   const layerError = primary.error ?? secondary.error;
 
   return (
-    <main className="atlas">
+    <main className="atlas" data-panel={panelOpen === null ? undefined : panelOpen ? "open" : "closed"}>
       <MapView
         primary={primary.data}
         secondary={mode === "compare" ? secondary.data : null}
@@ -223,207 +235,228 @@ export default function Atlas() {
       />
 
       <button
+        ref={showPanelRef}
         type="button"
-        className="panel-toggle"
-        onClick={() => setPanelOpen((o) => !o)}
-        aria-expanded={panelOpen === true}
+        className="panel-show"
+        onClick={showPanel}
+        aria-expanded={false}
         aria-controls="panel"
+        title="Show layers and data"
       >
-        {panelOpen ? "Hide panel" : "Layers & data"}
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3 2 8l10 5 10-5-10-5Z" />
+          <path d="m2 16 10 5 10-5" />
+        </svg>
+        Mangrove Atlas
+        <span className="sr-only">: show layers and data</span>
       </button>
 
-      <aside id="panel" className="panel" data-open={panelOpen === true || undefined}>
-        <header className="brand">
-          <h1>Mangrove Atlas</h1>
-          <p>
-            Where mangroves grew, year by year. An open-source tool from{" "}
-            <a href="https://floracarbon.ai" target="_blank" rel="noreferrer">Flora Carbon AI</a>.
-          </p>
-        </header>
+      <aside id="panel" className="panel" aria-label="Layers and data">
+        <button
+          ref={hidePanelRef}
+          type="button"
+          className="panel-hide"
+          onClick={hidePanel}
+          aria-label="Hide panel"
+          title="Hide panel"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15 6-6 6 6 6" />
+          </svg>
+        </button>
+        <div className="panel-scroll">
+          <header className="brand">
+            <h1>Mangrove Atlas</h1>
+            <p>
+              Where mangroves grew, year by year. An open-source tool from{" "}
+              <a href="https://floracarbon.ai" target="_blank" rel="noreferrer">Flora Carbon AI</a>.
+            </p>
+          </header>
 
-        <section aria-labelledby="h-data">
-          <h2 id="h-data">Data</h2>
-          <div className="datasets" role="radiogroup" aria-labelledby="h-data">
-            {DATASET_ORDER.map((id) => {
-              const d = DATASETS[id];
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-checked={id === datasetId}
-                  className="dataset"
-                  onClick={() => selectDataset(id)}
-                >
-                  <span className="dataset-name">{d.name}</span>
-                  <span className="dataset-meta">
-                    {d.years[0]}–{d.years[d.years.length - 1]}, {d.resolution},{" "}
-                    {d.provider === "static" ? "Zenodo" : "Planetary Computer"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="note">{ds.summary}</p>
-        </section>
-
-        <section aria-labelledby="h-view">
-          <h2 id="h-view">View</h2>
-          <div className="segmented" role="tablist" aria-labelledby="h-view">
-            {(["extent", "change", "compare"] as Mode[]).map((m) => {
-              const disabled = m === "change" && !ds.supportsChange;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === m}
-                  disabled={disabled}
-                  title={disabled ? "Gain and loss are only available for Global Mangrove Watch" : undefined}
-                  onClick={() => setMode(m)}
-                >
-                  {m === "extent" ? "Extent" : m === "change" ? "Gain & loss" : "Swipe"}
-                </button>
-              );
-            })}
-          </div>
-          {mode !== "extent" && (
-            <label className="field">
-              <span>{mode === "change" ? "Change since" : "Left side shows"}</span>
-              <select value={base} onChange={(e) => setBase(Number(e.target.value))}>
-                {ds.years.filter((y) => y !== year).map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          <div className="field">
-            <span id="basemap-label">Background map</span>
-            <div className="segmented" role="radiogroup" aria-labelledby="basemap-label">
-              {BASEMAPS.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={basemap === b.id}
-                  onClick={() => setBasemap(b.id)}
-                >
-                  {b.label}
-                </button>
-              ))}
+          <section aria-labelledby="h-data">
+            <h2 id="h-data">Data</h2>
+            <div className="datasets" role="radiogroup" aria-labelledby="h-data">
+              {DATASET_ORDER.map((id) => {
+                const d = DATASETS[id];
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={id === datasetId}
+                    className="dataset"
+                    onClick={() => selectDataset(id)}
+                  >
+                    <span className="dataset-name">{d.name}</span>
+                    <span className="dataset-meta">
+                      {d.years[0]}–{d.years[d.years.length - 1]}, {d.resolution},{" "}
+                      {d.provider === "static" ? "Zenodo" : "Planetary Computer"}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </div>
-          <label className="field">
-            <span>Layer opacity</span>
-            <input type="range" min={0.2} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} />
-          </label>
-          <ul className="legend">
-            {changeView ? (
-              <>
-                <li><i style={{ background: COLORS.gain }} />Gained since {base}</li>
-                <li><i style={{ background: COLORS.loss }} />Lost since {base}</li>
-              </>
-            ) : (
-              <li><i style={{ background: COLORS.mangrove }} />Mangrove in {year}{mode === "compare" ? ` (left: ${base})` : ""}</li>
+            <p className="note">{ds.summary}</p>
+          </section>
+
+          <section aria-labelledby="h-view">
+            <h2 id="h-view">View</h2>
+            <div className="segmented" role="tablist" aria-labelledby="h-view">
+              {(["extent", "change", "compare"] as Mode[]).map((m) => {
+                const disabled = m === "change" && !ds.supportsChange;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    role="tab"
+                    aria-selected={mode === m}
+                    disabled={disabled}
+                    title={disabled ? "Gain and loss are only available for Global Mangrove Watch" : undefined}
+                    onClick={() => setMode(m)}
+                  >
+                    {m === "extent" ? "Extent" : m === "change" ? "Gain & loss" : "Swipe"}
+                  </button>
+                );
+              })}
+            </div>
+            {mode !== "extent" && (
+              <label className="field">
+                <span>{mode === "change" ? "Change since" : "Left side shows"}</span>
+                <select value={base} onChange={(e) => setBase(Number(e.target.value))}>
+                  {ds.years.filter((y) => y !== year).map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </label>
             )}
-          </ul>
-          {belowMinZoom && <p className="note">Zoom in to see {ds.name}. It only renders from zoom level {ds.minZoom}.</p>}
-          {!belowMinZoom && view !== null && view.zoom < 6 && ds.provider === "mpc" && (
-            <p className="note">
-              Zoomed this far out, small mangrove patches are smaller than one screen pixel and drop out. Zoom in, or
-              use the Dark map for more contrast.
-            </p>
-          )}
-          {layerError && <p className="error">Map layer did not load: {layerError}</p>}
-        </section>
-
-        <section aria-labelledby="h-area">
-          <h2 id="h-area">Area in this view</h2>
-          {tooWide ? (
-            <p className="note">
-              Zoom in to measure. The view must be under {ds.maxStatsSpanDeg}° across for {ds.name}.
-            </p>
-          ) : (
-            <button type="button" className="primary" onClick={measure} disabled={statsState.loading || !view}>
-              {statsState.loading ? "Measuring every year…" : stats && !statsStale ? "Measure again" : "Measure mangroves in view"}
-            </button>
-          )}
-          {statsState.error && <p className="error">{statsState.error}</p>}
-          {stats && (
-            <div className={statsStale ? "is-stale" : undefined}>
-              <AreaChart data={stats.years} selected={year} onSelect={setYear} />
-              {change && (
-                <p className="note">
-                  {change.pct >= 0 ? "Up" : "Down"} {Math.abs(change.pct).toFixed(1)}% from {change.from.year} to {change.to.year}, across{" "}
-                  {formatArea(stats.regionKm2)} of map.
-                </p>
-              )}
-              {statsStale && <p className="note">The map has moved since this was measured.</p>}
+            <div className="field">
+              <span id="basemap-label">Background map</span>
+              <div className="segmented" role="radiogroup" aria-labelledby="basemap-label">
+                {BASEMAPS.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={basemap === b.id}
+                    onClick={() => setBasemap(b.id)}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-        </section>
-
-        <section aria-labelledby="h-point">
-          <h2 id="h-point">Point history</h2>
-          {!pointState.at && <p className="note">Click anywhere on the map to see which years it was mangrove.</p>}
-          {pointState.at && (
-            <>
-              <p className="coords">
-                {pointState.at[1].toFixed(4)}°, {pointState.at[0].toFixed(4)}°
-              </p>
-              {pointState.loading && <p className="note">Reading every year at this point…</p>}
-              {pointState.error && <p className="error">{pointState.error}</p>}
-              {point && !pointState.loading && (
+            <label className="field">
+              <span>Layer opacity</span>
+              <input type="range" min={0.2} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} />
+            </label>
+            <ul className="legend">
+              {changeView ? (
                 <>
-                  <ol className="history">
-                    {point.years.map((y) => (
-                      <li
-                        key={y.year}
-                        data-state={y.present === null ? "none" : y.present ? "yes" : "no"}
-                        title={`${y.year}: ${y.present === null ? "no data" : y.present ? "mangrove" : "not mangrove"}`}
-                      >
-                        <button type="button" onClick={() => setYear(y.year)} aria-label={`${y.year}, ${y.present === null ? "no data" : y.present ? "mangrove" : "not mangrove"}`}>
-                          <i />
-                          <span>{String(y.year).slice(2)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                  <p className="note">{pointSummary}</p>
+                  <li><i style={{ background: COLORS.gain }} />Gained since {base}</li>
+                  <li><i style={{ background: COLORS.loss }} />Lost since {base}</li>
                 </>
+              ) : (
+                <li><i style={{ background: COLORS.mangrove }} />Mangrove in {year}{mode === "compare" ? ` (left: ${base})` : ""}</li>
               )}
-            </>
-          )}
-        </section>
+            </ul>
+            {belowMinZoom && <p className="note">Zoom in to see {ds.name}. It only renders from zoom level {ds.minZoom}.</p>}
+            {!belowMinZoom && view !== null && view.zoom < 6 && ds.provider === "mpc" && (
+              <p className="note">
+                Zoomed this far out, small mangrove patches are smaller than one screen pixel and drop out. Zoom in, or
+                use the Dark map for more contrast.
+              </p>
+            )}
+            {layerError && <p className="error">Map layer did not load: {layerError}</p>}
+          </section>
 
-        <section aria-labelledby="h-places">
-          <h2 id="h-places">Go to</h2>
-          <ul className="places">
-            {PLACES.map((p) => (
-              <li key={p.name}>
-                <button type="button" onClick={() => jumpTo(p.center, p.zoom)}>
-                  {p.name}
-                  <span>{p.country}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+          <section aria-labelledby="h-area">
+            <h2 id="h-area">Area in this view</h2>
+            {tooWide ? (
+              <p className="note">
+                Zoom in to measure. The view must be under {ds.maxStatsSpanDeg}° across for {ds.name}.
+              </p>
+            ) : (
+              <button type="button" className="primary" onClick={measure} disabled={statsState.loading || !view}>
+                {statsState.loading ? "Measuring every year…" : stats && !statsStale ? "Measure again" : "Measure mangroves in view"}
+              </button>
+            )}
+            {statsState.error && <p className="error">{statsState.error}</p>}
+            {stats && (
+              <div className={statsStale ? "is-stale" : undefined}>
+                <AreaChart data={stats.years} selected={year} onSelect={setYear} />
+                {change && (
+                  <p className="note">
+                    {change.pct >= 0 ? "Up" : "Down"} {Math.abs(change.pct).toFixed(1)}% from {change.from.year} to {change.to.year}, across{" "}
+                    {formatArea(stats.regionKm2)} of map.
+                  </p>
+                )}
+                {statsStale && <p className="note">The map has moved since this was measured.</p>}
+              </div>
+            )}
+          </section>
 
-        <footer className="sources">
-          <p>{ds.citation}</p>
-          <p>
-            Licence: {ds.license}. <a href={ds.sourceUrl} target="_blank" rel="noreferrer">Dataset source</a>
-          </p>
-          <p>
-            Mangrove Atlas is MIT licensed. <a href={REPO_URL} target="_blank" rel="noreferrer">Code on GitHub</a>
-          </p>
-          {view && (
-            <p className="muted">
-              View: {formatArea(bboxAreaKm2(view.bbox))}, zoom {view.zoom.toFixed(1)}
+          <section aria-labelledby="h-point">
+            <h2 id="h-point">Point history</h2>
+            {!pointState.at && <p className="note">Click anywhere on the map to see which years it was mangrove.</p>}
+            {pointState.at && (
+              <>
+                <p className="coords">
+                  {pointState.at[1].toFixed(4)}°, {pointState.at[0].toFixed(4)}°
+                </p>
+                {pointState.loading && <p className="note">Reading every year at this point…</p>}
+                {pointState.error && <p className="error">{pointState.error}</p>}
+                {point && !pointState.loading && (
+                  <>
+                    <ol className="history">
+                      {point.years.map((y) => (
+                        <li
+                          key={y.year}
+                          data-state={y.present === null ? "none" : y.present ? "yes" : "no"}
+                          title={`${y.year}: ${y.present === null ? "no data" : y.present ? "mangrove" : "not mangrove"}`}
+                        >
+                          <button type="button" onClick={() => setYear(y.year)} aria-label={`${y.year}, ${y.present === null ? "no data" : y.present ? "mangrove" : "not mangrove"}`}>
+                            <i />
+                            <span>{String(y.year).slice(2)}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="note">{pointSummary}</p>
+                  </>
+                )}
+              </>
+            )}
+          </section>
+
+          <section aria-labelledby="h-places">
+            <h2 id="h-places">Go to</h2>
+            <ul className="places">
+              {PLACES.map((p) => (
+                <li key={p.name}>
+                  <button type="button" onClick={() => jumpTo(p.center, p.zoom)}>
+                    {p.name}
+                    <span>{p.country}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <footer className="sources">
+            <p>{ds.citation}</p>
+            <p>
+              Licence: {ds.license}. <a href={ds.sourceUrl} target="_blank" rel="noreferrer">Dataset source</a>
             </p>
-          )}
-        </footer>
+            <p>
+              Mangrove Atlas is MIT licensed. <a href={REPO_URL} target="_blank" rel="noreferrer">Code on GitHub</a>
+            </p>
+            {view && (
+              <p className="muted">
+                View: {formatArea(bboxAreaKm2(view.bbox))}, zoom {view.zoom.toFixed(1)}
+              </p>
+            )}
+          </footer>
+        </div>
       </aside>
 
       <div className="timeline-dock">
