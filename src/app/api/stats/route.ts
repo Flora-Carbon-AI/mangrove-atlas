@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { bboxAreaKm2, parseBBox } from "@/lib/geo";
-import { gmwAreaByYear } from "@/lib/server/ee";
+import { areaByYear, isGeeDataset } from "@/lib/server/ee";
 import { handle, HttpError, requireDataset } from "@/lib/server/http";
 import { mpcAreaByYear } from "@/lib/server/mpc";
 import type { StatsResponse } from "@/lib/types";
@@ -23,10 +23,9 @@ export async function GET(req: NextRequest) {
       );
     }
     const regionKm2 = bboxAreaKm2(bbox);
-    const byYear =
-      ds.provider === "gee"
-        ? await gmwAreaByYear(bbox, ds.years, regionKm2)
-        : await mpcAreaByYear(ds.id, bbox, ds.years);
+    const byYear = isGeeDataset(ds.id)
+      ? await areaByYear(ds.id, bbox, ds.years, regionKm2)
+      : await mpcAreaByYear(ds.id, bbox, ds.years);
     return {
       dataset: ds.id,
       bbox,

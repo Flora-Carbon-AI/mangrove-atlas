@@ -1,0 +1,34 @@
+name: Dataset suggestion
+description: Propose a mangrove or blue-carbon dataset to add to the atlas.
+labels: ["dataset"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Dataset name and version
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Where is it hosted?
+      description: Earth Engine asset ID, Planetary Computer collection, Zenodo DOI or another link.
+    validations:
+      required: true
+  - type: input
+    id: licence
+    attributes:
+      label: Licence
+      description: It must allow public display, e.g. CC BY 4.0.
+    validations:
+      required: true
+  - type: input
+    id: coverage
+    attributes:
+      label: Years, resolution and coverage
+      placeholder: "Annual 2015–2024, 10 m, global"
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it's useful
+      description: What it adds over the datasets already in the atlas, and the citation to use.

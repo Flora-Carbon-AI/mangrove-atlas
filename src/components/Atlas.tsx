@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { COLORS, DATASET_ORDER, DATASETS, PLACES, type BBox, type DatasetId } from "@/lib/datasets";
+import { BASEMAPS, COLORS, DATASET_ORDER, DATASETS, PLACES, type Basemap, type BBox, type DatasetId } from "@/lib/datasets";
 import { bboxAreaKm2, formatArea } from "@/lib/geo";
 import type { LayersResponse, PointResponse, StatsResponse, StatusResponse } from "@/lib/types";
 import AreaChart from "./AreaChart";
@@ -58,6 +58,7 @@ export default function Atlas() {
   const [base, setBase] = useState<number>(ds.years[0]);
   const [mode, setMode] = useState<Mode>("extent");
   const [opacity, setOpacity] = useState(0.9);
+  const [basemap, setBasemap] = useState<Basemap>("satellite");
   const [playing, setPlaying] = useState(false);
   const [view, setView] = useState<{ bbox: BBox; zoom: number } | null>(null);
   const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -98,7 +99,8 @@ export default function Atlas() {
     getJson<StatusResponse>("/api/status")
       .then((s) => {
         setStatus(s);
-        if (s.gee.ok) selectDataset("gmw-v3");
+        // With Earth Engine, open on the longest and most recent record (1984–2023).
+        if (s.gee.ok) selectDataset("cgmd-30");
       })
       .catch(() => setStatus({ gee: { configured: false, ok: false } }));
   }, [selectDataset]);
@@ -188,6 +190,7 @@ export default function Atlas() {
         secondary={mode === "compare" ? secondary.data : null}
         compare={mode === "compare"}
         compareLabels={[String(base), String(year)]}
+        basemap={basemap}
         opacity={opacity}
         marker={pointState.at}
         flyTo={fly}
@@ -263,7 +266,7 @@ export default function Atlas() {
                   role="tab"
                   aria-selected={mode === m}
                   disabled={disabled}
-                  title={disabled ? "Gain and loss need Global Mangrove Watch on Earth Engine" : undefined}
+                  title={disabled ? "Gain and loss need an Earth Engine dataset" : undefined}
                   onClick={() => setMode(m)}
                 >
                   {m === "extent" ? "Extent" : m === "change" ? "Gain & loss" : "Swipe"}
@@ -281,6 +284,22 @@ export default function Atlas() {
               </select>
             </label>
           )}
+          <div className="field">
+            <span id="basemap-label">Background map</span>
+            <div className="segmented" role="radiogroup" aria-labelledby="basemap-label">
+              {BASEMAPS.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={basemap === b.id}
+                  onClick={() => setBasemap(b.id)}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <label className="field">
             <span>Layer opacity</span>
             <input type="range" min={0.2} max={1} step={0.05} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} />
@@ -296,6 +315,12 @@ export default function Atlas() {
             )}
           </ul>
           {belowMinZoom && <p className="note">Zoom in to see {ds.name}. It only renders from zoom level {ds.minZoom}.</p>}
+          {!belowMinZoom && view !== null && view.zoom < 6 && ds.provider === "mpc" && (
+            <p className="note">
+              Zoomed this far out, small mangrove patches are smaller than one screen pixel and drop out. Zoom in, or
+              use the Dark map for more contrast.
+            </p>
+          )}
           {layerError && <p className="error">Map layer did not load: {layerError}</p>}
         </section>
 
