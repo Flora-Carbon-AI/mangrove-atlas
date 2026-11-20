@@ -12,6 +12,8 @@ on:
   push:
     paths:
       - "pipeline/**"
+      # The blue carbon projects builder doesn't touch the tiles.
+      - "!pipeline/projects/**"
       - ".github/workflows/build-data.yml"
 
 permissions:

@@ -100,7 +100,7 @@ The tile file is generated from the official release, never edited by hand:
 
 - **To rebuild and publish:** go to Actions → **Build mangrove tiles** → **Run workflow** on `main`. It downloads GMW v4.1.12 from Zenodo, runs `pipeline/build_tiles.py`, and publishes the tiles to GitHub Pages at https://flora-carbon-ai.github.io/mangrove-atlas/ (about 175 MB and 22,600 tiles, built in roughly 15 minutes).
 - **The single-file archive** (`gmw-v4112.pmtiles`) is also kept as a workflow artifact for 30 days.
-- **Automatic runs:** merging a pipeline change to `main` rebuilds and republishes. A pipeline change on a branch only builds, as a test.
+- **Automatic runs:** merging a tile pipeline change to `main` rebuilds and republishes. A tile pipeline change on a branch only builds, as a test. Changes under `pipeline/projects/` don't trigger it.
 
 To build locally (needs about 10 GB of free disk):
 
