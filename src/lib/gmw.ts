@@ -1,7 +1,10 @@
 /**
  * Global Mangrove Watch v4.1 in the browser, with no server and no API keys.
  *
- * The data is one static PMTiles archive built by pipeline/build_tiles.py.
+ * The data is a folder of static tiles built by pipeline/build_tiles.py and
+ * pipeline/export_dir.py, published on GitHub Pages:
+ *   {base}/index.json        which tiles exist + metadata
+ *   {base}/{z}/{x}/{y}.bin   one gzip-compressed tile
  * Each 512 px tile stores, per pixel, 41 bits: bit i = mangrove in 1985 + i.
  * Tiles also carry the exact mangrove area (km²) per year, summed from the
  * native-resolution pixels. Format "MGA1":
@@ -12,7 +15,6 @@
  * We download a tile once, then draw any year (or the gain/loss between two)
  * from memory, so moving through time needs no network requests.
  */
-import { PMTiles } from "pmtiles";
 import { COLORS } from "./datasets";
 import type { BBox } from "./datasets";
 
@@ -23,17 +25,44 @@ export const GMW_MAX_ZOOM = 11;
 const BYTES = 6;
 const HEADER = 4 + GMW_YEARS * 4;
 
-export const GMW_URL = process.env.NEXT_PUBLIC_GMW_PMTILES_URL ?? "/data/gmw-v4112.pmtiles";
+/** Where the tile folder lives. Override with NEXT_PUBLIC_GMW_TILES_URL (e.g. /data/gmw-v4112 for a local build). */
+export const GMW_BASE = (
+  process.env.NEXT_PUBLIC_GMW_TILES_URL ?? "https://flora-carbon-ai.github.io/mangrove-atlas/gmw-v4112"
+).replace(/\/$/, "");
 
 interface Tile {
   areas: Float32Array;
   bits: Uint8Array;
 }
 
-let archive: PMTiles | null = null;
-function pm(): PMTiles {
-  archive ??= new PMTiles(GMW_URL);
-  return archive;
+interface TileIndex {
+  tiles: Record<string, number[]>;
+  total_km2_by_year?: number[];
+}
+
+let indexPromise: Promise<Map<number, Set<number>>> | null = null;
+
+/** The set of tiles that exist, per zoom, so we never request empty ocean. */
+function tileIndex(): Promise<Map<number, Set<number>>> {
+  indexPromise ??= fetch(`${GMW_BASE}/index.json`)
+    .then((r) => {
+      if (!r.ok) throw new Error(`Mangrove tile index unavailable (${r.status})`);
+      return r.json() as Promise<TileIndex>;
+    })
+    .then((idx) => new Map(Object.entries(idx.tiles).map(([z, keys]) => [Number(z), new Set(keys)])))
+    .catch((err) => {
+      indexPromise = null; // retry on the next request
+      throw err;
+    });
+  return indexPromise;
+}
+
+async function gunzip(buf: ArrayBuffer): Promise<ArrayBuffer> {
+  const head = new Uint8Array(buf, 0, 2);
+  // Some hosts decompress for us (Content-Encoding); only gunzip real gzip bytes.
+  if (head[0] !== 0x1f || head[1] !== 0x8b) return buf;
+  const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(stream).arrayBuffer();
 }
 
 // Small LRU of decoded tiles (~1.6 MB each).
@@ -48,11 +77,12 @@ export function getTile(z: number, x: number, y: number): Promise<Tile | null> {
     cache.set(key, hit);
     return hit;
   }
-  const p = pm()
-    .getZxy(z, x, y)
-    .then((res) => {
-      if (!res) return null;
-      const buf = res.data;
+  const p = tileIndex()
+    .then(async (index) => {
+      if (!index.get(z)?.has(x * 2 ** z + y)) return null;
+      const res = await fetch(`${GMW_BASE}/${key}.bin`);
+      if (!res.ok) throw new Error(`Mangrove tile ${key} failed (${res.status})`);
+      const buf = await gunzip(await res.arrayBuffer());
       const magic = new TextDecoder().decode(new Uint8Array(buf, 0, 4));
       if (magic !== "MGA1") throw new Error("Unexpected mangrove tile format");
       return { areas: new Float32Array(buf, 4, GMW_YEARS), bits: new Uint8Array(buf, HEADER) };

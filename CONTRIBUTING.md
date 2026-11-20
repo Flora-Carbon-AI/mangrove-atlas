@@ -31,7 +31,7 @@ npm install
 npm run dev
 ```
 
-No credentials are needed. For the Global Mangrove Watch layer, point `NEXT_PUBLIC_GMW_PMTILES_URL` at the published tile file, or build a small region yourself with `pipeline/build_tiles.py --bbox …` (see the README).
+No credentials are needed. For the Global Mangrove Watch layer, the app reads the published tiles by default. To test pipeline changes, build a small region yourself with `pipeline/build_tiles.py --bbox …` (see the README).
 
 Before you open a PR:
 

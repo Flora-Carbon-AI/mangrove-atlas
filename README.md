@@ -42,17 +42,14 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The ESA layers work straight away. For Global Mangrove Watch, either:
-
-- set `NEXT_PUBLIC_GMW_PMTILES_URL` to the published tile file (see `.env.example`), or
-- put your own build at `public/data/gmw-v4112.pmtiles`.
+Open http://localhost:3000. Everything works straight away: Global Mangrove Watch loads from the published tiles on GitHub Pages, and the ESA layers come from Planetary Computer. To use your own build instead, export it to `public/data/gmw-v4112/` and set `NEXT_PUBLIC_GMW_TILES_URL=/data/gmw-v4112` (see `.env.example`).
 
 ## How it works
 
 ```
 Browser (Next.js page, MapLibre GL)
-   ├─ Global Mangrove Watch: reads one static PMTiles file with HTTP range
-   │  requests, decodes tiles and colours them for any year or change view
+   ├─ Global Mangrove Watch: fetches static tiles from GitHub Pages,
+   │  decodes them and colours them for any year or change view
    │  (src/lib/gmw.ts). No server and no keys.
    └─ ESA datasets: /api/layers, /api/stats, /api/point proxy the public
       Microsoft Planetary Computer APIs. No keys.
@@ -64,22 +61,24 @@ Browser (Next.js page, MapLibre GL)
 
 The tile file is generated from the official release, never edited by hand:
 
-1. **Run the build.** Actions → **Build mangrove tiles** → **Run workflow**. It downloads GMW v4.1.12 from Zenodo, runs `pipeline/build_tiles.py`, and saves `gmw-v4112.pmtiles` as a workflow artifact.
-2. **Upload to the bucket.** Tick **Upload to Cloudflare R2** to publish it. This needs the repository secrets `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`, held by maintainers.
+- **To rebuild and publish:** go to Actions → **Build mangrove tiles** → **Run workflow** on `main`. It downloads GMW v4.1.12 from Zenodo, runs `pipeline/build_tiles.py`, and publishes the tiles to GitHub Pages at https://flora-carbon-ai.github.io/mangrove-atlas/ (about 175 MB and 22,600 tiles, built in roughly 15 minutes).
+- **The single-file archive** (`gmw-v4112.pmtiles`) is also kept as a workflow artifact for 30 days.
+- **Automatic runs:** merging a pipeline change to `main` rebuilds and republishes. A pipeline change on a branch only builds, as a test.
 
 To build locally (needs about 10 GB of free disk):
 
 ```bash
 pip install -r pipeline/requirements.txt
 python pipeline/build_tiles.py --stack <unpacked stack dir> --union <unpacked union dir> --out gmw-v4112.pmtiles
+python pipeline/export_dir.py --pmtiles gmw-v4112.pmtiles --out public/data/gmw-v4112
 ```
 
-Add `--bbox W,S,E,N` to build a small region for testing.
+Add `--bbox W,S,E,N` to the first command to build a small region for testing.
 
 ## Hosting
 
 - **App:** Netlify. Every PR gets a deploy preview, and merging to `main` deploys production.
-- **Data:** the tile file is on Cloudflare R2, which has no download fees, so heavy public traffic costs nothing. Any host works if it supports HTTP range requests and CORS. `NEXT_PUBLIC_GMW_PMTILES_URL` points the app at the file.
+- **Data:** the tiles are on GitHub Pages: free, no account or card, and they don't count against Netlify's bandwidth. A typical visit loads well under 1 MB of tiles. Pages has a soft limit of about 100 GB of transfer a month. If the atlas outgrows that, copy the `gmw-v4112/` folder to any static host that sends CORS headers, and set `NEXT_PUBLIC_GMW_TILES_URL`.
 
 ## API
 

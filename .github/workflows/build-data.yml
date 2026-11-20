@@ -1,19 +1,15 @@
 name: Build mangrove tiles
 
-# Rebuilds the static Global Mangrove Watch tile archive from the official
-# Zenodo release. Run it by hand (Actions → Build mangrove tiles → Run workflow)
-# when GMW publishes a new version. It also runs on branch pushes that change
-# the pipeline, so changes are tested before they merge.
+# Rebuilds the Global Mangrove Watch tiles from the official Zenodo release and
+# publishes them on GitHub Pages (https://flora-carbon-ai.github.io/mangrove-atlas/),
+# where the app reads them. No API keys or cloud accounts involved.
+#
+# - Branch pushes that change the pipeline: build only, to test the change.
+# - Merges to main that change the pipeline, or a manual run: build and publish.
 
 on:
   workflow_dispatch:
-    inputs:
-      upload:
-        description: "Upload the result to Cloudflare R2 (needs the R2_* secrets)"
-        type: boolean
-        default: false
   push:
-    branches-ignore: [main]
     paths:
       - "pipeline/**"
       - ".github/workflows/build-data.yml"
@@ -63,23 +59,39 @@ jobs:
       - name: Build tiles
         run: python pipeline/build_tiles.py --stack work/stack --union work/union --out gmw-v4112.pmtiles --workers 4
 
-      - uses: actions/upload-artifact@v4
+      - name: Export tile folder for GitHub Pages
+        run: |
+          mkdir -p site
+          cp pipeline/site/index.html site/
+          touch site/.nojekyll
+          python pipeline/export_dir.py --pmtiles gmw-v4112.pmtiles --out site/gmw-v4112
+          du -sh site
+
+      - name: Keep the single-file archive
+        uses: actions/upload-artifact@v4
         with:
           name: gmw-v4112-pmtiles
           path: gmw-v4112.pmtiles
-          retention-days: 14
+          retention-days: 30
           compression-level: 0
 
-      - name: Upload to Cloudflare R2
-        if: github.event_name == 'workflow_dispatch' && inputs.upload
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_BUCKET: ${{ vars.R2_BUCKET || 'mangrove-atlas-data' }}
-        run: |
-          aws s3 cp gmw-v4112.pmtiles "s3://$R2_BUCKET/gmw-v4112.pmtiles" \
-            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
-            --content-type application/octet-stream \
-            --cache-control "public, max-age=604800"
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publish:
+    name: Publish to GitHub Pages
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

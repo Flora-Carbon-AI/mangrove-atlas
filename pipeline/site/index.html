@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mangrove Atlas data</title>
+<style>
+  body { font: 16px/1.6 system-ui, sans-serif; max-width: 42rem; margin: 3rem auto; padding: 0 1rem; color: #1d2b2a; }
+  code { background: #eef3f1; padding: 0.1em 0.35em; border-radius: 4px; }
+  a { color: #0b6b5c; }
+</style>
+</head>
+<body>
+<h1>Mangrove Atlas data</h1>
+<p>This site hosts the map tiles behind <a href="https://mangrove-atlas-floracarbon.netlify.app">Mangrove Atlas</a>, an open-source map of mangrove extent from 1985 to 2025 by <a href="https://floracarbon.ai">Flora Carbon AI</a>. The <a href="https://github.com/Flora-Carbon-AI/mangrove-atlas">code and build pipeline are on GitHub</a>.</p>
+
+<h2>What's here</h2>
+<ul>
+  <li><code>gmw-v4112/index.json</code>: the list of available tiles and metadata.</li>
+  <li><code>gmw-v4112/{z}/{x}/{y}.bin</code>: 512 px Web Mercator tiles. Each pixel holds 41 bits, one per year from 1985 to 2025. The format is documented in <a href="https://github.com/Flora-Carbon-AI/mangrove-atlas/blob/main/pipeline/build_tiles.py">pipeline/build_tiles.py</a>.</li>
+</ul>
+
+<h2>Source, licence and attribution</h2>
+<p>These tiles are a format conversion of <strong>Global Mangrove Watch v4.1.12</strong>, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, and are shared under the same licence. If you use them, please credit:</p>
+<p>Bunting, P., Hilarides, L., Rosenqvist, A., Oakes, G., Castro Brandão Vaz dos Santos, P., Worthington, T., Rosenqvist, J., Zanaga, D., Van De Kerchove, R., Tadono, T., Kobayashi, K. (2026). <em>Global Mangrove Watch: Timeseries of Mangrove Extent</em> (Version 4.1.12). Zenodo. <a href="https://doi.org/10.5281/zenodo.21346457">doi:10.5281/zenodo.21346457</a></p>
+<p>Changes made: reprojected from WGS 84 to Web Mercator (about 38 m pixels at the equator), re-encoded as tiles, and zoomed-out tiles drawn with "mangrove anywhere in this block". The original data is unchanged on Zenodo.</p>
+</body>
+</html>

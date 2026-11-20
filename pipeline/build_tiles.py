@@ -48,6 +48,7 @@ TILE = 512
 MAX_Z = 11
 GROUP_Z = 5  # parallelise over z5 subtrees
 MAGIC = b"MGA1"
+ATTRIBUTION = "Bunting, P. et al. (2026) Global Mangrove Watch: Timeseries of Mangrove Extent v4.1.12, doi:10.5281/zenodo.21346457, CC BY 4.0. Reprojected and re-encoded by Mangrove Atlas."
 EARTH_CIRCUMFERENCE = 40075016.68557849
 MERC_MAX = EARTH_CIRCUMFERENCE / 2
 
@@ -325,7 +326,7 @@ def main():
                 "years": N_YEARS,
                 "tile_size": TILE,
                 "max_native_zoom": MAX_Z,
-                "attribution": "Global Mangrove Watch v4.1.12 (Aberystwyth University, soloEO, JAXA, Wetlands International, TNC), CC BY 4.0",
+                "attribution": ATTRIBUTION,
                 "source": "https://doi.org/10.5281/zenodo.21346457",
                 "total_km2_by_year": [round(float(v), 1) for v in total] if total is not None else None,
             },

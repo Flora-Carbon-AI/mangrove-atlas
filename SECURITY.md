@@ -13,15 +13,15 @@ Include what you found, how to reproduce it, and the impact you expect. We aim t
 In scope:
 
 - The application code in this repository: the Next.js app, the API routes under `src/app/api` and the data pipeline under `pipeline/`.
-- The GitHub Actions workflows, including the one that publishes the data to Cloudflare R2.
+- The GitHub Actions workflows, including the one that publishes the data to GitHub Pages.
 - The live deployment at https://mangrove-atlas-floracarbon.netlify.app.
 
 Out of scope:
 
-- Vulnerabilities in Microsoft Planetary Computer, Cloudflare, OpenFreeMap, Esri or Zenodo. Report those to the providers.
+- Vulnerabilities in Microsoft Planetary Computer, GitHub Pages, OpenFreeMap, Esri or Zenodo. Report those to the providers.
 - Denial of service by sending large numbers of requests.
 
 ## Credentials
 
 - The app itself uses no API keys or secrets. The map data is a public static file, and the Planetary Computer APIs are public.
-- The only secrets are the Cloudflare R2 upload credentials, used by the "Build mangrove tiles" workflow. They are GitHub repository secrets, available only to manually started runs, never to pull requests.
+- There are no secrets. The data is published to GitHub Pages by the "Build mangrove tiles" workflow, using GitHub's built-in deployment token, and only from `main`.
