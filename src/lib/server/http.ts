@@ -13,7 +13,7 @@ export class HttpError extends Error {
 
 export function requireDataset(params: URLSearchParams): Dataset {
   const id = params.get("dataset");
-  if (!isDatasetId(id)) throw new HttpError(400, "Unknown dataset. Use gmw-v3, esa-cci-lc or esa-worldcover.");
+  if (!isDatasetId(id)) throw new HttpError(400, "Unknown dataset. Use esa-cci-lc or esa-worldcover.");
   return DATASETS[id];
 }
 

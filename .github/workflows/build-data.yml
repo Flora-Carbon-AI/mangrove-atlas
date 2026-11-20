@@ -1,0 +1,85 @@
+name: Build mangrove tiles
+
+# Rebuilds the static Global Mangrove Watch tile archive from the official
+# Zenodo release. Run it by hand (Actions → Build mangrove tiles → Run workflow)
+# when GMW publishes a new version. It also runs on branch pushes that change
+# the pipeline, so changes are tested before they merge.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload the result to Cloudflare R2 (needs the R2_* secrets)"
+        type: boolean
+        default: false
+  push:
+    branches-ignore: [main]
+    paths:
+      - "pipeline/**"
+      - ".github/workflows/build-data.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-data-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build GMW v4.1 tiles
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      ZENODO: https://zenodo.org/records/21346457/files
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+
+      - run: pip install -r pipeline/requirements.txt
+
+      - name: Download GMW v4.1.12 from Zenodo
+        run: |
+          mkdir -p work/union work/stack && cd work
+          curl -fsSL --retry 5 -o union.tar.gz "$ZENODO/gmw_mng_ext_v4112_union.tar.gz?download=1"
+          curl -fsSL --retry 5 -o stack.tar.gz "$ZENODO/gmw_mng_ext_v4112_stack.tar.gz?download=1"
+          ls -la
+          tar -xzf union.tar.gz -C union --warning=no-unknown-keyword
+          tar -xzf stack.tar.gz -C stack --warning=no-unknown-keyword
+          rm union.tar.gz stack.tar.gz
+          echo "union: $(find union -name '*.tif' ! -name '._*' | wc -l) tiles, stack: $(find stack -name '*.tif' ! -name '._*' | wc -l) tiles"
+          df -h /
+
+      - name: Build tiles
+        run: python pipeline/build_tiles.py --stack work/stack --union work/union --out gmw-v4112.pmtiles --workers 4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gmw-v4112-pmtiles
+          path: gmw-v4112.pmtiles
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload to Cloudflare R2
+        if: github.event_name == 'workflow_dispatch' && inputs.upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'mangrove-atlas-data' }}
+        run: |
+          aws s3 cp gmw-v4112.pmtiles "s3://$R2_BUCKET/gmw-v4112.pmtiles" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
+            --content-type application/octet-stream \
+            --cache-control "public, max-age=604800"

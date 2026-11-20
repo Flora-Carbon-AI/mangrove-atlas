@@ -6,6 +6,8 @@ export interface TileSource {
   bounds?: BBox;
   minzoom?: number;
   maxzoom?: number;
+  /** Pixel size of the source's tiles (default 256). */
+  tileSize?: number;
 }
 
 export interface LayersResponse {
@@ -34,14 +36,6 @@ export interface PointResponse {
   lon: number;
   lat: number;
   years: { year: number; present: boolean | null }[];
-}
-
-export interface StatusResponse {
-  gee: {
-    configured: boolean;
-    ok: boolean;
-    error?: string;
-  };
 }
 
 export interface ApiError {
