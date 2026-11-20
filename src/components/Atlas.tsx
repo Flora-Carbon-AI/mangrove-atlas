@@ -243,7 +243,7 @@ export default function Atlas() {
                       {status === null
                         ? "Checking Earth Engine…"
                         : status.gee.configured
-                          ? `Earth Engine sign-in failed: ${status.gee.error ?? "unknown error"}`
+                          ? (status.gee.error ?? "Earth Engine is unavailable.")
                           : "Add an Earth Engine service account to turn this on. The README shows how."}
                     </span>
                   )}
