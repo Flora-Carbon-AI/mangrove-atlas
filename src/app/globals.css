@@ -310,6 +310,9 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
 }
+.segmented-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
 .segmented button {
   padding: 7px 4px;
   background: none;
@@ -329,6 +332,8 @@ button:disabled {
 
 .field {
   display: grid;
+  /* minmax(0, …): a select with long option text must not widen the panel. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   margin-top: 14px;
   color: var(--text-2);
@@ -356,6 +361,36 @@ button:disabled {
 .field-row .primary {
   width: auto;
   padding: 7px 14px;
+}
+.date-row input[type="date"] {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  color-scheme: dark;
+  background: var(--estuary-sunk);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+.date-row button {
+  flex: none;
+  width: 36px;
+  font-size: 18px;
+  line-height: 1;
+  background: var(--estuary-sunk);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+.date-row button:disabled {
+  opacity: 0.4;
+}
+@media (pointer: coarse) {
+  .date-row button {
+    width: 44px;
+    min-height: 44px;
+  }
 }
 .field input[type="range"] {
   accent-color: var(--ochre);

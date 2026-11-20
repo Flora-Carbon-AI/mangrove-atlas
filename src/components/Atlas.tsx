@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { addDays, dailyLayer, todayUtc, type DailySettings } from "@/lib/daily";
 import { BASEMAPS, COLORS, DATASET_ORDER, DATASETS, PLACES, type Basemap, type BBox, type DatasetId } from "@/lib/datasets";
 import { bboxAreaKm2, formatArea } from "@/lib/geo";
 import { areaByYear, GMW_MAX_ZOOM, GMW_TILE, gmwTileUrl, pointYears } from "@/lib/gmw";
@@ -10,6 +11,7 @@ import type { LayersResponse, PointResponse, StatsResponse } from "@/lib/types";
 import { loadProjects, type Project, type ProjectsData } from "@/lib/projects";
 import AreaChart from "./AreaChart";
 import type { FlyTarget, ProjectPick } from "./MapView";
+import DailyImagerySection from "./DailyImagery";
 import { ProjectCard, ProjectsSection } from "./ProjectsPanel";
 import { projectFeatures } from "./projectsLayer";
 import Timeline from "./Timeline";
@@ -81,6 +83,23 @@ export default function Atlas() {
   const [mode, setMode] = useState<Mode>("extent");
   const [opacity, setOpacity] = useState(0.9);
   const [basemap, setBasemap] = useState<Basemap>("satellite");
+  // Daily satellite image: off (null) until asked for. Dates are read when it's turned
+  // on, not while rendering, so the server-rendered page never depends on the clock.
+  const [daily, setDaily] = useState<DailySettings | null>(null);
+  const [dailyMax, setDailyMax] = useState("");
+  const [lastDaily, setLastDaily] = useState<DailySettings | null>(null);
+  const toggleDaily = (on: boolean) => {
+    if (!on) {
+      setLastDaily(daily);
+      setDaily(null);
+      return;
+    }
+    const today = todayUtc();
+    setDailyMax(today);
+    // Yesterday is complete everywhere; today's image is still filling in.
+    setDaily(lastDaily ?? { sensor: "terra", bands: "true", date: addDays(today, -1) });
+  };
+  const dailyMap = useMemo(() => (daily ? dailyLayer(daily) : null), [daily]);
   const [playing, setPlaying] = useState(false);
   const [view, setView] = useState<{ bbox: BBox; zoom: number } | null>(null);
   const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -284,6 +303,7 @@ export default function Atlas() {
         onView={onView}
         projects={projectLayer}
         onProjectPick={onProjectPick}
+        daily={dailyMap}
       />
 
       {projectPick && projectsData && (
@@ -434,6 +454,8 @@ export default function Atlas() {
             )}
             {layerError && <p className="error">Map layer did not load: {layerError}</p>}
           </section>
+
+          <DailyImagerySection settings={daily} maxDate={dailyMax} onToggle={toggleDaily} onChange={setDaily} />
 
           <section aria-labelledby="h-area">
             <h2 id="h-area">Area in this view</h2>

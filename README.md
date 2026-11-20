@@ -14,6 +14,7 @@ You can:
 - **Click any point** to see which years it was mangrove.
 - **See blue carbon projects** from every major registry on the map, with their status, developer, credits issued and a link to the registry page.
 - **Use it on a phone**: the panel and project details open as bottom sheets.
+- **See a recent satellite image**: NASA's daily MODIS or VIIRS image for any day, including today, under the mangrove layer.
 - **Switch the background map** between satellite imagery, a standard street map and a dark map.
 - **Jump to well-known mangrove landscapes**: Sundarbans, Indus Delta, Abu Dhabi, Mekong, Niger Delta and more.
 
@@ -32,6 +33,20 @@ You can:
 - **Area figures are estimates.** They are summed from the tiles at about 38 m resolution, and edge tiles are weighted by how much of them is in view. They come within a fraction of a percent of a direct count of the source pixels, but use the native data for anything formal.
 - **Zoomed out, every mangrove pixel stays visible.** Zoomed-out tiles show "mangrove anywhere in this block". Areas never use that widened version.
 - **ESA CCI class 170 is a proxy.** At 300 m it misses narrow fringes and can include other saline swamp forest. WorldCover covers only 2020 and 2021, and those maps were made with different algorithm versions.
+
+## Daily satellite image
+
+"Daily satellite image" in the panel shows one day's picture from NASA's [Global Imagery Browse Services (GIBS)](https://nasa-gibs.github.io/gibs-api-docs/), under the mangrove layer and over any background map. It needs no key; the browser loads the tiles straight from NASA.
+
+| Satellite | Pass (local time) | First day |
+|---|---|---|
+| Terra MODIS | Morning | 24 Feb 2000 |
+| Aqua MODIS | Afternoon | 3 Jul 2002 |
+| NOAA-20 VIIRS | Afternoon | 5 Jan 2018 |
+
+- **True colour** looks like a photo. **False colour** (MODIS bands 7-2-1, VIIRS M11-I2-I1) separates water from land: water dark, vegetation green, bare ground pink, cloud cyan.
+- **Pixels are a few hundred metres across.** Use it for clouds, floods, river plumes and large clearings. It can't show single mangrove stands; the 30 m Global Mangrove Watch layer does that.
+- **Black areas are gaps** between satellite passes or missing data. VIIRS has the fewest. Today's image fills in during the day as passes arrive, so it starts on yesterday.
 
 ## Blue carbon projects
 
@@ -152,4 +167,5 @@ Other sources:
 - ESA Land Cover CCI / Copernicus Climate Change Service. *Land cover classification gridded maps from 1992 to present.* Via Microsoft Planetary Computer.
 - Zanaga, D. et al. (2022). *ESA WorldCover 10 m 2021 v200.* https://doi.org/10.5281/zenodo.7254221 (CC BY 4.0). Via Microsoft Planetary Computer.
 - Blue carbon projects: Berkeley Carbon Trading Project, *Voluntary Registry Offsets Database* v2026-08, Goldman School of Public Policy, UC Berkeley (CC BY 4.0); Karnik, A., Kilbride, J., Goodbody, T., Ross, R., Ayrey, E. (2024). *A global database of nature-based carbon offset project boundaries.* https://doi.org/10.5281/zenodo.11459391 (CC BY 4.0); [GeoNames](https://www.geonames.org/) (CC BY 4.0); [Natural Earth](https://www.naturalearthdata.com/) (public domain). Project boundaries have been simplified for the web.
+- Daily satellite images: we acknowledge the use of imagery provided by services from NASA's Global Imagery Browse Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS).
 - Basemaps: imagery © Esri, Maxar, Earthstar Geographics; [OpenFreeMap](https://openfreemap.org) © OpenMapTiles, data © OpenStreetMap contributors.
