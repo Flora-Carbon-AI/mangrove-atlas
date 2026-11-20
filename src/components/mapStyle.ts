@@ -48,6 +48,8 @@ export function basemapStyle(b: Basemap): StyleSpecification | string {
 const PREFIX = "mg-";
 /** Blue carbon project layers (see projectsLayer.ts). */
 export const PROJECTS_PREFIX = "bc-";
+/** The daily satellite image (see applyDaily). */
+const DAILY_ID = "dl-imagery";
 let generation = 0;
 const latest = new WeakMap<MLMap, string>();
 
@@ -71,8 +73,10 @@ export function switchBasemap(map: MLMap, b: Basemap) {
     diff: false,
     transformStyle: (prev, next) => {
       if (!prev) return next;
-      const carried = (id: string) => id.startsWith(PREFIX) || id.startsWith(PROJECTS_PREFIX);
+      const carried = (id: string) => id.startsWith(PREFIX) || id.startsWith(PROJECTS_PREFIX) || id === DAILY_ID;
       const sources = Object.fromEntries(Object.entries(prev.sources).filter(([id]) => carried(id)));
+      // The daily image covers the background; the mangrove overlay draws on top of it.
+      const daily = prev.layers.filter((l) => l.id === DAILY_ID);
       const overlays = prev.layers.filter((l) => l.id.startsWith(PREFIX));
       // Project markers always sit on top of everything, labels included.
       const projects = prev.layers.filter((l) => l.id.startsWith(PROJECTS_PREFIX));
@@ -80,7 +84,7 @@ export function switchBasemap(map: MLMap, b: Basemap) {
       return {
         ...next,
         sources: { ...next.sources, ...sources },
-        layers: [...next.layers.slice(0, at), ...overlays, ...next.layers.slice(at), ...projects],
+        layers: [...next.layers.slice(0, at), ...daily, ...overlays, ...next.layers.slice(at), ...projects],
       };
     },
   });
@@ -144,4 +148,25 @@ export function setOverlayOpacity(map: MLMap, opacity: number) {
   for (const layer of map.getStyle()?.layers ?? []) {
     if (layer.id.startsWith(PREFIX)) map.setPaintProperty(layer.id, "raster-opacity", opacity);
   }
+}
+
+/**
+ * Shows one day's satellite image (or none) over the background map, under the
+ * mangrove overlay and labels. GIBS images stop at zoom 9; MapLibre enlarges them beyond.
+ */
+export function applyDaily(map: MLMap, layer: { tiles: string; attribution: string } | null) {
+  if (map.getLayer(DAILY_ID)) map.removeLayer(DAILY_ID);
+  if (map.getSource(DAILY_ID)) map.removeSource(DAILY_ID);
+  if (!layer) return;
+  map.addSource(DAILY_ID, {
+    type: "raster",
+    tiles: [layer.tiles],
+    tileSize: 256,
+    maxzoom: 9,
+    attribution: layer.attribution,
+  });
+  const before = map
+    .getStyle()
+    .layers.find((l) => l.id.startsWith(PREFIX) || l.id === "labels" || l.type === "symbol")?.id;
+  map.addLayer({ id: DAILY_ID, type: "raster", source: DAILY_ID, paint: { "raster-fade-duration": 150 } }, before);
 }

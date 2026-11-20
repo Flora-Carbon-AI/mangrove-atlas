@@ -19,7 +19,7 @@ setWorkerUrl("/vendor/maplibre-gl-worker.mjs");
 addProtocol("gmw", gmwProtocol);
 import type { Basemap, BBox } from "@/lib/datasets";
 import type { LayersResponse } from "@/lib/types";
-import { applyOverlay, basemapStyle, setOverlayOpacity, switchBasemap } from "./mapStyle";
+import { applyDaily, applyOverlay, basemapStyle, setOverlayOpacity, switchBasemap } from "./mapStyle";
 import { applyProjects, PROJECT_CLICK_LAYERS, type ProjectFeatures } from "./projectsLayer";
 
 /** One project, several whose markers overlap, or a country's country-only projects. */
@@ -80,6 +80,8 @@ interface Props {
   /** Blue carbon project markers, or null to hide them. */
   projects: ProjectFeatures | null;
   onProjectPick: (pick: ProjectPick) => void;
+  /** One day's satellite image under the overlay, or null for none. */
+  daily: { tiles: string; attribution: string } | null;
 }
 
 const INITIAL = { center: [89.25, 21.95] as [number, number], zoom: 8.6 };
@@ -107,8 +109,21 @@ function setBasemap(map: MLMap, basemap: Basemap) {
 }
 
 export default function MapView(props: Props) {
-  const { primary, secondary, compare, compareLabels, basemap, opacity, marker, flyTo, onPick, onView, projects, onProjectPick } =
-    props;
+  const {
+    primary,
+    secondary,
+    compare,
+    compareLabels,
+    basemap,
+    opacity,
+    marker,
+    flyTo,
+    onPick,
+    onView,
+    projects,
+    onProjectPick,
+    daily,
+  } = props;
   const basemapRef = useRef(basemap);
   useEffect(() => {
     basemapRef.current = basemap;
@@ -246,6 +261,13 @@ export default function MapView(props: Props) {
       if (m) whenReady(m, () => applyProjects(m, projects));
     }
   }, [projects, compare]);
+
+  // Daily satellite image on both maps.
+  useEffect(() => {
+    for (const m of [mapRef.current, topMapRef.current]) {
+      if (m) whenReady(m, () => applyDaily(m, daily));
+    }
+  }, [daily, compare]);
 
   useEffect(() => {
     for (const m of [mapRef.current, topMapRef.current]) {
