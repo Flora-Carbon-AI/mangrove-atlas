@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { gmwPointHistory } from "@/lib/server/ee";
+import { isGeeDataset, pointHistory } from "@/lib/server/ee";
 import { handle, HttpError, requireDataset } from "@/lib/server/http";
 import { mpcPointHistory } from "@/lib/server/mpc";
 import type { PointResponse } from "@/lib/types";
@@ -17,10 +17,9 @@ export async function GET(req: NextRequest) {
     if (!Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
       throw new HttpError(400, "lon and lat must be valid coordinates.");
     }
-    const raw =
-      ds.provider === "gee"
-        ? await gmwPointHistory(lon, lat, ds.years)
-        : await mpcPointHistory(ds.id, lon, lat, ds.years);
+    const raw = isGeeDataset(ds.id)
+      ? await pointHistory(ds.id, lon, lat, ds.years)
+      : await mpcPointHistory(ds.id, lon, lat, ds.years);
     return {
       dataset: ds.id,
       lon,

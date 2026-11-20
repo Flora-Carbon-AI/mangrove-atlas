@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   years: number[];
@@ -14,10 +14,14 @@ interface Props {
 }
 
 /**
- * The year ribbon. Years sit on a true time axis so the gaps in the record
- * (e.g. GMW has nothing between 1996 and 2007) read as gaps, not as neighbours.
+ * The year ribbon: a slider you can drag, tap or drive with the keyboard.
+ * Years sit on a true time axis so gaps in the record (e.g. GMW has nothing
+ * between 1996 and 2007) read as gaps, not as neighbours. Dragging snaps to
+ * the nearest year that has data.
  */
 export default function Timeline({ years, year, base, playing, loading, onYear, onTogglePlay }: Props) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
   const first = years[0];
   const last = years[years.length - 1];
   const span = Math.max(1, last - first);
@@ -29,7 +33,25 @@ export default function Timeline({ years, year, base, playing, loading, onYear, 
     if (years[i] - years[i - 1] > 1) gaps.push([years[i - 1], years[i]]);
   }
 
+  const nearestYear = (clientX: number) => {
+    const rect = trackRef.current!.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const target = first + frac * span;
+    return years.reduce((best, y) => (Math.abs(y - target) < Math.abs(best - target) ? y : best), years[0]);
+  };
+
+  const pick = (clientX: number) => {
+    const y = nearestYear(clientX);
+    if (y !== year) onYear(y);
+  };
+
   const idx = years.indexOf(year);
+  const step = (delta: number) => {
+    const next = years[Math.min(years.length - 1, Math.max(0, idx + delta))];
+    if (next !== undefined && next !== year) onYear(next);
+  };
+
+  // Arrow keys anywhere on the page (outside form fields) also move the year.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -41,9 +63,11 @@ export default function Timeline({ years, year, base, playing, loading, onYear, 
     return () => window.removeEventListener("keydown", onKey);
   }, [idx, years, onYear]);
 
+  const labelEvery = years.length <= 12 ? 1 : years.length <= 30 ? 5 : 10;
+
   return (
-    <div className="timeline" aria-label="Year">
-      <div className="timeline-year" aria-live="polite">
+    <div className="timeline">
+      <div className="timeline-year" aria-hidden="true">
         <span className={loading ? "is-loading" : undefined}>{year}</span>
         {base !== null && <small>compared with {base}</small>}
       </div>
@@ -62,7 +86,45 @@ export default function Timeline({ years, year, base, playing, loading, onYear, 
         )}
       </button>
 
-      <div className="track">
+      <div
+        ref={trackRef}
+        className="track"
+        data-dragging={dragging || undefined}
+        role="slider"
+        tabIndex={0}
+        aria-label="Year"
+        aria-valuemin={first}
+        aria-valuemax={last}
+        aria-valuenow={year}
+        aria-valuetext={base !== null ? `${year}, compared with ${base}` : String(year)}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setDragging(true);
+          pick(e.clientX);
+        }}
+        onPointerMove={(e) => {
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) pick(e.clientX);
+        }}
+        onPointerUp={() => setDragging(false)}
+        onPointerCancel={() => setDragging(false)}
+        onKeyDown={(e) => {
+          const keys: Record<string, () => void> = {
+            ArrowRight: () => step(1),
+            ArrowUp: () => step(1),
+            ArrowLeft: () => step(-1),
+            ArrowDown: () => step(-1),
+            PageUp: () => step(5),
+            PageDown: () => step(-5),
+            Home: () => onYear(first),
+            End: () => onYear(last),
+          };
+          const fn = keys[e.key];
+          if (fn) {
+            e.preventDefault();
+            fn();
+          }
+        }}
+      >
         <div className="track-line" />
         {gaps.map(([a, b]) => (
           <div
@@ -72,25 +134,19 @@ export default function Timeline({ years, year, base, playing, loading, onYear, 
             title={`No observations ${a + 1}–${b - 1}`}
           />
         ))}
-        {base !== null && <div className="track-base" style={{ left: `${pos(base)}%` }} aria-hidden="true" />}
+        {base !== null && <div className="track-base" style={{ left: `${pos(base)}%` }} />}
         {years.map((y) => {
-          const showLabel = y === first || y === last || y === year || years.length <= 12 || y % 5 === 0;
+          // Always label the current year; drop axis labels that would collide with it.
+          const showLabel =
+            y === year || ((y === first || y === last || y % labelEvery === 0) && Math.abs(pos(y) - pos(year)) > 7);
           return (
-            <button
-              key={y}
-              type="button"
-              className="notch"
-              data-active={y === year || undefined}
-              style={{ left: `${pos(y)}%` }}
-              onClick={() => onYear(y)}
-              aria-label={`Show ${y}`}
-              aria-pressed={y === year}
-            >
+            <div key={y} className="notch" data-active={y === year || undefined} style={{ left: `${pos(y)}%` }}>
               <i />
               {showLabel && <span>{y}</span>}
-            </button>
+            </div>
           );
         })}
+        <div className="thumb" style={{ left: `${pos(year)}%` }} />
       </div>
     </div>
   );

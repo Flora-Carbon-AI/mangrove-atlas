@@ -8,7 +8,7 @@
 
 export type Provider = "gee" | "mpc";
 
-export type DatasetId = "gmw-v3" | "esa-cci-lc" | "esa-worldcover";
+export type DatasetId = "gmw-v3" | "cgmd-30" | "esa-cci-lc" | "esa-worldcover";
 
 export interface Dataset {
   id: DatasetId;
@@ -49,6 +49,23 @@ export const DATASETS: Record<DatasetId, Dataset> = {
     license: "CC BY 4.0",
     sourceUrl: "https://doi.org/10.5281/zenodo.6894273",
   },
+  "cgmd-30": {
+    id: "cgmd-30",
+    provider: "gee",
+    name: "Global Annual Mangrove Extent",
+    summary:
+      "Yearly mangrove polygons from 1984 to 2023, mapped from Landsat by The Mangrove Lab (Continuous Global Mangrove Dynamics).",
+    resolution: "30 m",
+    years: range(1984, 2023),
+    minZoom: 0,
+    supportsChange: true,
+    maxStatsSpanDeg: 6,
+    citation:
+      "Zhang, Z., Murray, N., Song, X., … & Friess, D. (2026). Unexpected expansion and regrowth in Earth's mangrove forests over the past four decades. Science. doi:10.1126/science.aec9773",
+    license: "CC BY 4.0",
+    sourceUrl:
+      "https://developers.google.com/earth-engine/datasets/catalog/projects_mangrovedatahub2_assets_CGMD-Extent30",
+  },
   "esa-cci-lc": {
     id: "esa-cci-lc",
     provider: "mpc",
@@ -85,8 +102,17 @@ export const DATASETS: Record<DatasetId, Dataset> = {
 
 export const DATASET_ORDER: DatasetId[] = [
   "gmw-v3",
+  "cgmd-30",
   "esa-cci-lc",
   "esa-worldcover",
+];
+
+export type Basemap = "satellite" | "standard" | "dark";
+
+export const BASEMAPS: { id: Basemap; label: string }[] = [
+  { id: "satellite", label: "Satellite" },
+  { id: "standard", label: "Standard" },
+  { id: "dark", label: "Dark" },
 ];
 
 export function isDatasetId(v: string | null): v is DatasetId {

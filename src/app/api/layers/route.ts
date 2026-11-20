@@ -1,8 +1,13 @@
 import type { NextRequest } from "next/server";
-import { gmwChangeTiles, gmwExtentTiles } from "@/lib/server/ee";
+import { changeTiles, extentTiles, isGeeDataset } from "@/lib/server/ee";
 import { handle, HttpError, requireDataset, requireYear } from "@/lib/server/http";
 import { mpcConfig, mpcExtentSources } from "@/lib/server/mpc";
 import type { LayersResponse } from "@/lib/types";
+
+const GEE_ATTRIBUTION: Record<string, string> = {
+  "gmw-v3": "Global Mangrove Watch v3 (Bunting et al. 2022) via Google Earth Engine",
+  "cgmd-30": "Continuous Global Mangrove Dynamics (Zhang et al. 2026, The Mangrove Lab) via Google Earth Engine",
+};
 
 /**
  * GET /api/layers?dataset=gmw-v3&year=2020[&mode=change&base=1996]
@@ -15,31 +20,17 @@ export async function GET(req: NextRequest) {
     const year = requireYear(ds, q.get("year"));
     const mode = q.get("mode") === "change" ? "change" : "extent";
 
-    if (mode === "change") {
-      if (!ds.supportsChange) throw new HttpError(400, `${ds.name} does not support the change view.`);
-      const base = requireYear(ds, q.get("base"), "base");
-      const url = await gmwChangeTiles(base, year);
-      return {
-        dataset: ds.id,
-        year,
-        base,
-        mode,
-        sources: [{ tiles: [url], maxzoom: 14 }],
-        attribution: "Global Mangrove Watch v3 (Bunting et al. 2022) via Google Earth Engine",
-      };
+    if (isGeeDataset(ds.id)) {
+      if (mode === "change") {
+        const base = requireYear(ds, q.get("base"), "base");
+        const url = await changeTiles(ds.id, base, year);
+        return { dataset: ds.id, year, base, mode, sources: [{ tiles: [url], maxzoom: 14 }], attribution: GEE_ATTRIBUTION[ds.id] };
+      }
+      const url = await extentTiles(ds.id, year);
+      return { dataset: ds.id, year, mode, sources: [{ tiles: [url], maxzoom: 14 }], attribution: GEE_ATTRIBUTION[ds.id] };
     }
 
-    if (ds.provider === "gee") {
-      const url = await gmwExtentTiles(year);
-      return {
-        dataset: ds.id,
-        year,
-        mode,
-        sources: [{ tiles: [url], maxzoom: 14 }],
-        attribution: "Global Mangrove Watch v3 (Bunting et al. 2022) via Google Earth Engine",
-      };
-    }
-
+    if (mode === "change") throw new HttpError(400, `${ds.name} does not support the change view.`);
     return {
       dataset: ds.id,
       year,

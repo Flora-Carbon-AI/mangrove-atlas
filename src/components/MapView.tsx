@@ -6,9 +6,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 // Copied into /public by scripts/copy-maplibre-worker.mjs (runs before dev and build).
 setWorkerUrl("/vendor/maplibre-gl-worker.mjs");
-import type { BBox } from "@/lib/datasets";
+import type { Basemap, BBox } from "@/lib/datasets";
 import type { LayersResponse } from "@/lib/types";
-import { applyOverlay, BASE_STYLE, setOverlayOpacity } from "./mapStyle";
+import { applyOverlay, basemapStyle, setOverlayOpacity, switchBasemap } from "./mapStyle";
 
 export interface FlyTarget {
   center: [number, number];
@@ -23,6 +23,7 @@ interface Props {
   secondary: LayersResponse | null;
   compare: boolean;
   compareLabels: [string, string];
+  basemap: Basemap;
   opacity: number;
   marker: [number, number] | null;
   flyTo: FlyTarget | null;
@@ -32,21 +33,34 @@ interface Props {
 
 const INITIAL = { center: [89.25, 21.95] as [number, number], zoom: 8.6 };
 
-// isStyleLoaded() turns false again while sources fetch tiles, so remember
-// which maps have fired "load" instead of asking the map.
-const loadedMaps = new WeakSet<MLMap>();
+// isStyleLoaded() turns false again while sources fetch tiles, so track
+// readiness ourselves: a map is ready after "style.load" until its next setStyle.
+const readyMaps = new WeakSet<MLMap>();
+const mapBasemap = new WeakMap<MLMap, Basemap>();
 
-function trackLoad(map: MLMap) {
-  map.once("load", () => loadedMaps.add(map));
+function trackStyle(map: MLMap, basemap: Basemap) {
+  mapBasemap.set(map, basemap);
+  map.on("style.load", () => readyMaps.add(map));
 }
 
 function whenReady(map: MLMap, fn: () => void) {
-  if (loadedMaps.has(map)) fn();
-  else map.once("load", fn);
+  if (readyMaps.has(map)) fn();
+  else map.once("style.load", fn);
+}
+
+function setBasemap(map: MLMap, basemap: Basemap) {
+  if (mapBasemap.get(map) === basemap) return;
+  mapBasemap.set(map, basemap);
+  readyMaps.delete(map);
+  switchBasemap(map, basemap);
 }
 
 export default function MapView(props: Props) {
-  const { primary, secondary, compare, compareLabels, opacity, marker, flyTo, onPick, onView } = props;
+  const { primary, secondary, compare, compareLabels, basemap, opacity, marker, flyTo, onPick, onView } = props;
+  const basemapRef = useRef(basemap);
+  useEffect(() => {
+    basemapRef.current = basemap;
+  }, [basemap]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const baseRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -64,14 +78,14 @@ export default function MapView(props: Props) {
     if (!baseRef.current) return;
     const map = new MLMap({
       container: baseRef.current,
-      style: BASE_STYLE,
+      style: basemapStyle(basemapRef.current),
       center: INITIAL.center,
       zoom: INITIAL.zoom,
       attributionControl: false,
       maxPitch: 0,
       dragRotate: false,
     });
-    trackLoad(map);
+    trackStyle(map, basemapRef.current);
     map.touchZoomRotate.disableRotation();
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new ScaleControl({ unit: "metric" }), "bottom-right");
@@ -113,14 +127,14 @@ export default function MapView(props: Props) {
     if (!compare || !base || !topRef.current) return;
     const top = new MLMap({
       container: topRef.current,
-      style: BASE_STYLE,
+      style: basemapStyle(basemapRef.current),
       center: base.getCenter(),
       zoom: base.getZoom(),
       attributionControl: false,
       maxPitch: 0,
       dragRotate: false,
     });
-    trackLoad(top);
+    trackStyle(top, basemapRef.current);
     top.touchZoomRotate.disableRotation();
     let syncing = false;
     const mirror = (from: MLMap, to: MLMap) => () => {
@@ -155,6 +169,12 @@ export default function MapView(props: Props) {
       if (m) whenReady(m, () => setOverlayOpacity(m, opacity));
     }
   }, [opacity]);
+
+  useEffect(() => {
+    for (const m of [mapRef.current, topMapRef.current]) {
+      if (m) setBasemap(m, basemap);
+    }
+  }, [basemap]);
 
   useEffect(() => {
     if (flyTo) mapRef.current?.flyTo({ center: flyTo.center, zoom: flyTo.zoom, duration: 2200, essential: true });
