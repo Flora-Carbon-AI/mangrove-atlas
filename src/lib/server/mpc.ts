@@ -60,11 +60,14 @@ interface StacItem {
 }
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
+const MEMO_LIMIT = 1000;
 const memo = new Map<string, { at: number; value: Promise<unknown> }>();
 
 function remember<T>(key: string, ttl: number, fn: () => Promise<T>): Promise<T> {
   const hit = memo.get(key);
   if (hit && Date.now() - hit.at < ttl) return hit.value as Promise<T>;
+  // Bounded: evict the oldest entries (Map keeps insertion order).
+  while (memo.size >= MEMO_LIMIT) memo.delete(memo.keys().next().value as string);
   const value = fn().catch((err) => {
     memo.delete(key);
     throw err;
@@ -205,8 +208,14 @@ export async function mpcPointHistory(id: DatasetId, lon: number, lat: number, y
   const c = mpcConfig(id);
   const eps = 1e-6;
   const point: BBox = [lon - eps, lat - eps, lon + eps, lat + eps];
+  const contains = (b: BBox) => lon >= b[0] && lon < b[2] && lat >= b[1] && lat < b[3];
   const results = await pool(years, 6, async (year) => {
-    const [item] = await searchItems(c.collection, year, point);
+    // CCI has a few large items per year: reuse the cached list. WorldCover
+    // has thousands of small ones, so search by point (cached, bounded).
+    const item =
+      c.tiling === "item"
+        ? (await searchItems(c.collection, year, MANGROVE_BELT)).find((it) => contains(it.bbox))
+        : (await searchItems(c.collection, year, point))[0];
     if (!item) return [String(year), null] as const;
     const url = `${DATA}/item/point/${lon},${lat}?item=${encodeURIComponent(item.id)}&collection=${c.collection}&assets=${c.asset}&expression=${encodeURIComponent(c.expression)}&asset_as_band=true`;
     const res = await fetch(url, { cache: "no-store" });

@@ -69,9 +69,16 @@ export default function Atlas() {
     at: null,
   });
   const [fly, setFly] = useState<FlyTarget | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  // null = layout default: open on desktop, closed on phones (decided in CSS).
+  const [panelOpen, setPanelOpen] = useState<boolean | null>(null);
 
   const geeReady = status?.gee.ok === true;
+
+  const jumpTo = (center: [number, number], zoom: number) => {
+    setFly((f) => ({ center, zoom, key: (f?.key ?? 0) + 1 }));
+    // On phones the panel covers the map; get out of the way.
+    if (window.matchMedia("(max-width: 860px)").matches) setPanelOpen(false);
+  };
 
   const selectDataset = useCallback((id: DatasetId) => {
     const next = DATASETS[id];
@@ -100,15 +107,30 @@ export default function Atlas() {
   const primary = useLayers(datasetId, year, changeView ? "change" : "extent", changeView ? base : null);
   const secondary = useLayers(datasetId, mode === "compare" ? base : null, "extent", null);
 
+  /** Moves to a year; when comparing, the base year steps aside if they collide. */
+  const goToYear = useCallback(
+    (y: number) => {
+      setYear(y);
+      if (y === base && mode !== "extent") {
+        const other = ds.years.find((v) => v !== y);
+        if (other !== undefined) setBase(other);
+      }
+    },
+    [base, mode, ds.years],
+  );
+
   // Timelapse: advance once the current year has loaded, at a readable pace.
   useEffect(() => {
     if (!playing || primary.loading) return;
     const t = setTimeout(() => {
       const i = ds.years.indexOf(year);
-      setYear(ds.years[(i + 1) % ds.years.length]);
+      let next = ds.years[(i + 1) % ds.years.length];
+      // Skip the comparison year so the two sides never show the same year.
+      if (mode !== "extent" && next === base) next = ds.years[(i + 2) % ds.years.length];
+      setYear(next);
     }, 1500);
     return () => clearTimeout(t);
-  }, [playing, primary.loading, year, ds.years]);
+  }, [playing, primary.loading, year, ds.years, mode, base]);
 
   const measure = useCallback(() => {
     if (!view) return;
@@ -177,13 +199,13 @@ export default function Atlas() {
         type="button"
         className="panel-toggle"
         onClick={() => setPanelOpen((o) => !o)}
-        aria-expanded={panelOpen}
+        aria-expanded={panelOpen === true}
         aria-controls="panel"
       >
         {panelOpen ? "Hide panel" : "Layers & data"}
       </button>
 
-      <aside id="panel" className="panel" data-open={panelOpen || undefined}>
+      <aside id="panel" className="panel" data-open={panelOpen === true || undefined}>
         <header className="brand">
           <h1>Mangrove Atlas</h1>
           <p>
@@ -341,7 +363,7 @@ export default function Atlas() {
           <ul className="places">
             {PLACES.map((p) => (
               <li key={p.name}>
-                <button type="button" onClick={() => setFly({ center: p.center, zoom: p.zoom, key: Date.now() })}>
+                <button type="button" onClick={() => jumpTo(p.center, p.zoom)}>
                   {p.name}
                   <span>{p.country}</span>
                 </button>
@@ -373,13 +395,7 @@ export default function Atlas() {
           base={mode === "extent" ? null : base}
           playing={playing}
           loading={primary.loading || secondary.loading}
-          onYear={(y) => {
-            setYear(y);
-            if (y === base && mode !== "extent") {
-              const other = ds.years.find((v) => v !== y);
-              if (other !== undefined) setBase(other);
-            }
-          }}
+          onYear={goToYear}
           onTogglePlay={() => setPlaying((p) => !p)}
         />
       </div>

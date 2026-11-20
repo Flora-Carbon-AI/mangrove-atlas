@@ -33,19 +33,41 @@ export const BASE_STYLE: MapOptions["style"] = {
 };
 
 const PREFIX = "mg-";
+let generation = 0;
+const latest = new WeakMap<MLMap, string>();
 
-/** Replaces the mangrove overlay on a map with the sources in `data`. */
-export function applyOverlay(map: MLMap, data: LayersResponse | null, opacity: number) {
+/** Removes overlay layers and sources from every generation except `keep`. */
+function removeOverlays(map: MLMap, keep: string | null) {
   const style = map.getStyle();
   for (const layer of style.layers ?? []) {
-    if (layer.id.startsWith(PREFIX)) map.removeLayer(layer.id);
+    if (layer.id.startsWith(PREFIX) && (keep === null || !layer.id.startsWith(keep))) map.removeLayer(layer.id);
   }
   for (const id of Object.keys(style.sources ?? {})) {
-    if (id.startsWith(PREFIX)) map.removeSource(id);
+    if (id.startsWith(PREFIX) && (keep === null || !id.startsWith(keep))) map.removeSource(id);
   }
-  if (!data) return;
+}
+
+/**
+ * Replaces the mangrove overlay on a map with the sources in `data`.
+ * The new layers go in on top first and the old ones are removed once the
+ * new tiles have drawn, so stepping through years doesn't flash empty.
+ */
+export function applyOverlay(map: MLMap, data: LayersResponse | null, opacity: number) {
+  if (!data) {
+    latest.delete(map);
+    removeOverlays(map, null);
+    return;
+  }
+  const gen = `${PREFIX}${++generation}-`;
+  latest.set(map, gen);
+  const swap = () => {
+    // Only the newest generation cleans up; older swaps would delete it.
+    if (latest.get(map) === gen && map.getStyle()) removeOverlays(map, gen);
+  };
+  map.once("idle", swap);
+  setTimeout(swap, 5000); // in case tiles never settle (e.g. the user keeps panning)
   data.sources.forEach((src, i) => {
-    const id = `${PREFIX}${i}`;
+    const id = `${gen}${i}`;
     map.addSource(id, {
       type: "raster",
       tiles: src.tiles,
