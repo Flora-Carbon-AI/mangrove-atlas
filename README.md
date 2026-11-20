@@ -12,6 +12,8 @@ You can:
 - **See gain and loss** between any two years, or compare them side by side with a swipe slider.
 - **Measure mangrove area** in the current view for every year, as a bar chart with the net change.
 - **Click any point** to see which years it was mangrove.
+- **See blue carbon projects** from every major registry on the map, with their status, developer, credits issued and a link to the registry page.
+- **Use it on a phone**: the panel and project details open as bottom sheets.
 - **Switch the background map** between satellite imagery, a standard street map and a dark map.
 - **Jump to well-known mangrove landscapes**: Sundarbans, Indus Delta, Abu Dhabi, Mekong, Niger Delta and more.
 
@@ -30,6 +32,41 @@ You can:
 - **Area figures are estimates.** They are summed from the tiles at about 38 m resolution, and edge tiles are weighted by how much of them is in view. They come within a fraction of a percent of a direct count of the source pixels, but use the native data for anything formal.
 - **Zoomed out, every mangrove pixel stays visible.** Zoomed-out tiles show "mangrove anywhere in this block". Areas never use that widened version.
 - **ESA CCI class 170 is a proxy.** At 300 m it misses narrow fringes and can include other saline swamp forest. WorldCover covers only 2020 and 2021, and those maps were made with different algorithm versions.
+
+## Blue carbon projects
+
+The projects layer lists mangrove, seagrass, salt marsh and other tidal wetland carbon projects on Verra (VCS), Gold Standard, the Climate Action Reserve and the American Carbon Registry. It is a static file, [`public/projects/blue-carbon-projects.json`](public/projects/blue-carbon-projects.json), built only from openly licensed data:
+
+| Source | Used for | Licence |
+|---|---|---|
+| [Berkeley Carbon Trading Project, Voluntary Registry Offsets Database](https://gspp.berkeley.edu/berkeley-carbon-trading-project/offsets-database) (v2026-08) | The project list: IDs, names, status, developer, methodology, credits | CC BY 4.0 |
+| [Karnik et al. (2024), nature-based carbon project boundaries](https://doi.org/10.5281/zenodo.11459391) | Project boundaries, where published | CC BY 4.0 |
+| [GeoNames](https://www.geonames.org/) | Places named in a project's title | CC BY 4.0 |
+| [Natural Earth](https://www.naturalearthdata.com/) | States and countries | Public domain |
+
+Projects are chosen by methodology (VM0033, VM0024, AR-AM0014 and any method naming tidal, coastal wetland, seagrass or mangrove) and by blue carbon terms in the project name (mangrove, manglar, seagrass, salt marsh, tidal, mikoko and others), then checked by hand. [`pipeline/projects/curation.json`](pipeline/projects/curation.json) records every exclusion and location decision with its reason.
+
+**How exact is each location?** Registries publish project areas as KML or PDF files whose terms don't allow republishing, so most projects aren't placed from them. Every project says how it was placed:
+
+- **Boundary:** the project's own boundary, from Karnik et al. Shown as an outline when zoomed in.
+- **Place:** a town, lagoon, island or delta named in the project's title, located with GeoNames.
+- **State:** a state or province named in the title.
+- **Country:** only the country is known. These are grouped into one numbered circle per country.
+
+Solid amber dots are boundaries; ringed dots are approximate. Never use an approximate location as a project boundary.
+
+**Not covered:** Plan Vivo and other registries that publish no open data, and projects listed after VROD v2026-08. Withdrawn, rejected and inactive projects are hidden unless you tick "Include withdrawn, rejected and inactive projects".
+
+**To rebuild** after a new VROD release, download the inputs listed at the top of [`pipeline/projects/build_projects.py`](pipeline/projects/build_projects.py), then run:
+
+```bash
+pip install -r pipeline/projects/requirements.txt
+python pipeline/projects/build_projects.py --vrod vrod.xlsx --renoster <boundaries dir> \
+  --geonames <geonames dir> --ne <natural earth dir> \
+  --curation pipeline/projects/curation.json --out public/projects/blue-carbon-projects.json
+```
+
+Check the summary it prints. Any project listed as `UNRESOLVED` fell back to its country: add a location for it in `curation.json` if its title names a place.
 
 ## Quick start
 
@@ -114,4 +151,5 @@ Other sources:
 
 - ESA Land Cover CCI / Copernicus Climate Change Service. *Land cover classification gridded maps from 1992 to present.* Via Microsoft Planetary Computer.
 - Zanaga, D. et al. (2022). *ESA WorldCover 10 m 2021 v200.* https://doi.org/10.5281/zenodo.7254221 (CC BY 4.0). Via Microsoft Planetary Computer.
+- Blue carbon projects: Berkeley Carbon Trading Project, *Voluntary Registry Offsets Database* v2026-08, Goldman School of Public Policy, UC Berkeley (CC BY 4.0); Karnik, A., Kilbride, J., Goodbody, T., Ross, R., Ayrey, E. (2024). *A global database of nature-based carbon offset project boundaries.* https://doi.org/10.5281/zenodo.11459391 (CC BY 4.0); [GeoNames](https://www.geonames.org/) (CC BY 4.0); [Natural Earth](https://www.naturalearthdata.com/) (public domain). Project boundaries have been simplified for the web.
 - Basemaps: imagery © Esri, Maxar, Earthstar Geographics; [OpenFreeMap](https://openfreemap.org) © OpenMapTiles, data © OpenStreetMap contributors.

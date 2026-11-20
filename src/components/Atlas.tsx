@@ -1,13 +1,17 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BASEMAPS, COLORS, DATASET_ORDER, DATASETS, PLACES, type Basemap, type BBox, type DatasetId } from "@/lib/datasets";
 import { bboxAreaKm2, formatArea } from "@/lib/geo";
 import { areaByYear, GMW_MAX_ZOOM, GMW_TILE, gmwTileUrl, pointYears } from "@/lib/gmw";
 import type { LayersResponse, PointResponse, StatsResponse } from "@/lib/types";
+import { loadProjects, type Project, type ProjectsData } from "@/lib/projects";
 import AreaChart from "./AreaChart";
-import type { FlyTarget } from "./MapView";
+import type { FlyTarget, ProjectPick } from "./MapView";
+import { ProjectCard, ProjectsSection } from "./ProjectsPanel";
+import { projectFeatures } from "./projectsLayer";
 import Timeline from "./Timeline";
 
 const MapView = dynamic(() => import("./MapView"), { ssr: false });
@@ -96,6 +100,8 @@ export default function Atlas() {
   // The button that was clicked disappears, so hand focus to its counterpart.
   const showPanel = () => {
     setPanelOpen(true);
+    // On phones the panel and the project card share the same bottom sheet slot.
+    if (window.matchMedia("(max-width: 860px)").matches) setProjectPick(null);
     requestAnimationFrame(() => hidePanelRef.current?.focus());
   };
   const hidePanel = () => {
@@ -196,6 +202,50 @@ export default function Atlas() {
 
   const onView = useCallback((bbox: BBox, zoom: number) => setView({ bbox, zoom }), []);
 
+  // ---- Blue carbon projects ----
+  const [projectsData, setProjectsData] = useState<ProjectsData | null>(null);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [showProjects, setShowProjects] = useState(true);
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const [projectPick, setProjectPick] = useState<ProjectPick | null>(null);
+
+  useEffect(() => {
+    loadProjects()
+      .then(setProjectsData)
+      .catch((e: Error) => setProjectsError(e.message));
+  }, []);
+
+  const visibleProjects = useMemo(
+    () => (projectsData ? projectsData.projects.filter((p) => includeInactive || p.statusGroup !== "inactive") : []),
+    [projectsData, includeInactive],
+  );
+  const projectLayer = useMemo(
+    () => (showProjects && projectsData ? projectFeatures(visibleProjects) : null),
+    [showProjects, projectsData, visibleProjects],
+  );
+
+  // MapView keeps its handlers in a ref, so this needn't be memoised.
+  const onProjectPick = (pick: ProjectPick) => {
+    setProjectPick(pick);
+    // On phones the card replaces the panel sheet rather than stacking on it.
+    if (window.matchMedia("(max-width: 860px)").matches) setPanelOpen(false);
+  };
+
+  // On phones the history lives in the hidden panel: open it at that section.
+  const pointSectionRef = useRef<HTMLElement>(null);
+  const onMapPick = (lon: number, lat: number) => {
+    inspect(lon, lat);
+    if (!window.matchMedia("(max-width: 860px)").matches) return;
+    setProjectPick(null);
+    setPanelOpen(true);
+    requestAnimationFrame(() => pointSectionRef.current?.scrollIntoView({ block: "start" }));
+  };
+
+  const zoomToProject = (p: Project) => {
+    const zoom = { boundary: 10, site: 10, place: 9, state: 6, country: 5 }[p.location.precision];
+    jumpTo([p.location.lon, p.location.lat], zoom);
+  };
+
   const viewSpan = view ? Math.max(view.bbox[2] - view.bbox[0], view.bbox[3] - view.bbox[1]) : Infinity;
   const tooWide = viewSpan > ds.maxStatsSpanDeg;
   const belowMinZoom = view !== null && view.zoom < ds.minZoom;
@@ -230,9 +280,22 @@ export default function Atlas() {
         opacity={opacity}
         marker={pointState.at}
         flyTo={fly}
-        onPick={inspect}
+        onPick={onMapPick}
         onView={onView}
+        projects={projectLayer}
+        onProjectPick={onProjectPick}
       />
+
+      {projectPick && projectsData && (
+        <ProjectCard
+          pick={projectPick}
+          data={projectsData}
+          visible={visibleProjects}
+          onClose={() => setProjectPick(null)}
+          onSelect={(id) => setProjectPick({ id })}
+          onZoom={zoomToProject}
+        />
+      )}
 
       <button
         ref={showPanelRef}
@@ -266,7 +329,10 @@ export default function Atlas() {
         </button>
         <div className="panel-scroll">
           <header className="brand">
-            <h1>Mangrove Atlas</h1>
+            <div className="brand-title">
+              <Image className="brand-logo" src="/icon.png" alt="Flora Carbon AI" width={40} height={40} loading="eager" />
+              <h1>Mangrove Atlas</h1>
+            </div>
             <p>
               Where mangroves grew, year by year. An open-source tool from{" "}
               <a href="https://floracarbon.ai" target="_blank" rel="noreferrer">Flora Carbon AI</a>.
@@ -395,9 +461,9 @@ export default function Atlas() {
             )}
           </section>
 
-          <section aria-labelledby="h-point">
+          <section ref={pointSectionRef} aria-labelledby="h-point">
             <h2 id="h-point">Point history</h2>
-            {!pointState.at && <p className="note">Click anywhere on the map to see which years it was mangrove.</p>}
+            {!pointState.at && <p className="note">Tap or click anywhere on the map to see which years it was mangrove.</p>}
             {pointState.at && (
               <>
                 <p className="coords">
@@ -427,6 +493,16 @@ export default function Atlas() {
               </>
             )}
           </section>
+
+          <ProjectsSection
+            data={projectsData}
+            error={projectsError}
+            show={showProjects}
+            onShow={setShowProjects}
+            includeInactive={includeInactive}
+            onIncludeInactive={setIncludeInactive}
+            visible={visibleProjects}
+          />
 
           <section aria-labelledby="h-places">
             <h2 id="h-places">Go to</h2>

@@ -5,6 +5,8 @@ import type { LayersResponse } from "@/lib/types";
 /** Esri World Imagery, slightly muted so mangrove overlays stay legible. */
 const SATELLITE: StyleSpecification = {
   version: 8,
+  // Fonts for map labels we draw ourselves (e.g. project counts). Same font server as the vector basemaps.
+  glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   sources: {
     imagery: {
       type: "raster",
@@ -44,6 +46,8 @@ export function basemapStyle(b: Basemap): StyleSpecification | string {
 }
 
 const PREFIX = "mg-";
+/** Blue carbon project layers (see projectsLayer.ts). */
+export const PROJECTS_PREFIX = "bc-";
 let generation = 0;
 const latest = new WeakMap<MLMap, string>();
 
@@ -67,13 +71,16 @@ export function switchBasemap(map: MLMap, b: Basemap) {
     diff: false,
     transformStyle: (prev, next) => {
       if (!prev) return next;
-      const sources = Object.fromEntries(Object.entries(prev.sources).filter(([id]) => id.startsWith(PREFIX)));
+      const carried = (id: string) => id.startsWith(PREFIX) || id.startsWith(PROJECTS_PREFIX);
+      const sources = Object.fromEntries(Object.entries(prev.sources).filter(([id]) => carried(id)));
       const overlays = prev.layers.filter((l) => l.id.startsWith(PREFIX));
+      // Project markers always sit on top of everything, labels included.
+      const projects = prev.layers.filter((l) => l.id.startsWith(PROJECTS_PREFIX));
       const at = labelLayerIndex(next.layers);
       return {
         ...next,
         sources: { ...next.sources, ...sources },
-        layers: [...next.layers.slice(0, at), ...overlays, ...next.layers.slice(at)],
+        layers: [...next.layers.slice(0, at), ...overlays, ...next.layers.slice(at), ...projects],
       };
     },
   });
