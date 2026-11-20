@@ -1,11 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AttributionControl, Map as MLMap, Marker, NavigationControl, ScaleControl, setWorkerUrl } from "maplibre-gl";
+import {
+  addProtocol,
+  AttributionControl,
+  Map as MLMap,
+  Marker,
+  NavigationControl,
+  ScaleControl,
+  setWorkerUrl,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { gmwProtocol } from "@/lib/gmw";
 
 // Copied into /public by scripts/copy-maplibre-worker.mjs (runs before dev and build).
 setWorkerUrl("/vendor/maplibre-gl-worker.mjs");
+// Global Mangrove Watch tiles are decoded and coloured in the browser.
+addProtocol("gmw", gmwProtocol);
 import type { Basemap, BBox } from "@/lib/datasets";
 import type { LayersResponse } from "@/lib/types";
 import { applyOverlay, basemapStyle, setOverlayOpacity, switchBasemap } from "./mapStyle";

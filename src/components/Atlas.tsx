@@ -4,7 +4,8 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BASEMAPS, COLORS, DATASET_ORDER, DATASETS, PLACES, type Basemap, type BBox, type DatasetId } from "@/lib/datasets";
 import { bboxAreaKm2, formatArea } from "@/lib/geo";
-import type { LayersResponse, PointResponse, StatsResponse, StatusResponse } from "@/lib/types";
+import { areaByYear, GMW_MAX_ZOOM, GMW_TILE, gmwTileUrl, pointYears } from "@/lib/gmw";
+import type { LayersResponse, PointResponse, StatsResponse } from "@/lib/types";
 import AreaChart from "./AreaChart";
 import type { FlyTarget } from "./MapView";
 import Timeline from "./Timeline";
@@ -22,9 +23,26 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return body as T;
 }
 
+/** Static datasets are drawn in the browser; their "layers" are just protocol URLs. */
+function staticLayers(dataset: DatasetId, year: number, mode: "extent" | "change", base: number | null): LayersResponse {
+  return {
+    dataset,
+    year,
+    mode,
+    ...(mode === "change" && base !== null ? { base } : {}),
+    sources: [{ tiles: [gmwTileUrl(mode, year, base ?? 0)], maxzoom: GMW_MAX_ZOOM, tileSize: GMW_TILE }],
+    attribution: "Global Mangrove Watch v4.1.12 (Bunting et al. 2026), CC BY 4.0",
+  };
+}
+
 function useLayers(dataset: DatasetId, year: number | null, mode: "extent" | "change", base: number | null) {
+  const isStatic = DATASETS[dataset].provider === "static";
+  const local = useMemo(
+    () => (isStatic && year !== null ? staticLayers(dataset, year, mode, base) : null),
+    [isStatic, dataset, year, mode, base],
+  );
   let query: string | null = null;
-  if (year !== null) {
+  if (year !== null && !isStatic) {
     const q = new URLSearchParams({ dataset, year: String(year), mode });
     if (mode === "change" && base !== null) q.set("base", String(base));
     query = q.toString();
@@ -44,6 +62,7 @@ function useLayers(dataset: DatasetId, year: number | null, mode: "extent" | "ch
       });
     return () => ctl.abort();
   }, [query]);
+  if (local) return { data: local, error: null, loading: false };
   if (query === null) return { data: null, error: null, loading: false };
   const settled = state.query === query;
   // Keep showing the previous year while the next one loads, so a timelapse doesn't flash.
@@ -51,8 +70,7 @@ function useLayers(dataset: DatasetId, year: number | null, mode: "extent" | "ch
 }
 
 export default function Atlas() {
-  const [status, setStatus] = useState<StatusResponse | null>(null);
-  const [datasetId, setDatasetId] = useState<DatasetId>("esa-cci-lc");
+  const [datasetId, setDatasetId] = useState<DatasetId>("gmw-v4");
   const ds = DATASETS[datasetId];
   const [year, setYear] = useState<number>(ds.years[ds.years.length - 1]);
   const [base, setBase] = useState<number>(ds.years[0]);
@@ -73,8 +91,6 @@ export default function Atlas() {
   // null = layout default: open on desktop, closed on phones (decided in CSS).
   const [panelOpen, setPanelOpen] = useState<boolean | null>(null);
 
-  const geeReady = status?.gee.ok === true;
-
   const jumpTo = (center: [number, number], zoom: number) => {
     setFly((f) => ({ center, zoom, key: (f?.key ?? 0) + 1 }));
     // On phones the panel covers the map; get out of the way.
@@ -93,17 +109,6 @@ export default function Atlas() {
     setPointState((p) => ({ ...p, error: null }));
     setPlaying(false);
   }, []);
-
-  // Earth Engine status decides which dataset we open with.
-  useEffect(() => {
-    getJson<StatusResponse>("/api/status")
-      .then((s) => {
-        setStatus(s);
-        // With Earth Engine, open on the longest and most recent record (1984–2023).
-        if (s.gee.ok) selectDataset("cgmd-30");
-      })
-      .catch(() => setStatus({ gee: { configured: false, ok: false } }));
-  }, [selectDataset]);
 
   const changeView = mode === "change" && ds.supportsChange;
   const primary = useLayers(datasetId, year, changeView ? "change" : "extent", changeView ? base : null);
@@ -137,7 +142,17 @@ export default function Atlas() {
   const measure = useCallback(() => {
     if (!view) return;
     setStatsState({ loading: true, error: null });
-    getJson<StatsResponse>(`/api/stats?dataset=${datasetId}&bbox=${view.bbox.map((v) => v.toFixed(4)).join(",")}`)
+    const bbox = view.bbox.map((v) => +v.toFixed(4)) as BBox;
+    const request: Promise<StatsResponse> =
+      DATASETS[datasetId].provider === "static"
+        ? areaByYear(bbox, view.zoom).then((km2) => ({
+            dataset: datasetId,
+            bbox,
+            regionKm2: bboxAreaKm2(bbox),
+            years: DATASETS[datasetId].years.map((y, i) => ({ year: y, areaKm2: km2[i] })),
+          }))
+        : getJson<StatsResponse>(`/api/stats?dataset=${datasetId}&bbox=${bbox.join(",")}`);
+    request
       .then((s) => {
         setStats(s);
         setStatsState({ loading: false, error: null });
@@ -148,7 +163,16 @@ export default function Atlas() {
   const inspect = useCallback(
     (lon: number, lat: number) => {
       setPointState({ loading: true, error: null, at: [lon, lat] });
-      getJson<PointResponse>(`/api/point?dataset=${datasetId}&lon=${lon.toFixed(5)}&lat=${lat.toFixed(5)}`)
+      const request: Promise<PointResponse> =
+        DATASETS[datasetId].provider === "static"
+          ? pointYears(lon, lat).then((bits) => ({
+              dataset: datasetId,
+              lon,
+              lat,
+              years: DATASETS[datasetId].years.map((y, i) => ({ year: y, present: bits ? bits[i] : null })),
+            }))
+          : getJson<PointResponse>(`/api/point?dataset=${datasetId}&lon=${lon.toFixed(5)}&lat=${lat.toFixed(5)}`);
+      request
         .then((p) => {
           setPoint(p);
           setPointState({ loading: false, error: null, at: [lon, lat] });
@@ -222,31 +246,20 @@ export default function Atlas() {
           <div className="datasets" role="radiogroup" aria-labelledby="h-data">
             {DATASET_ORDER.map((id) => {
               const d = DATASETS[id];
-              const locked = d.provider === "gee" && !geeReady;
               return (
                 <button
                   key={id}
                   type="button"
                   role="radio"
                   aria-checked={id === datasetId}
-                  disabled={locked}
                   className="dataset"
                   onClick={() => selectDataset(id)}
                 >
                   <span className="dataset-name">{d.name}</span>
                   <span className="dataset-meta">
                     {d.years[0]}–{d.years[d.years.length - 1]}, {d.resolution},{" "}
-                    {d.provider === "gee" ? "Google Earth Engine" : "Planetary Computer"}
+                    {d.provider === "static" ? "Zenodo" : "Planetary Computer"}
                   </span>
-                  {locked && (
-                    <span className="dataset-lock">
-                      {status === null
-                        ? "Checking Earth Engine…"
-                        : status.gee.configured
-                          ? (status.gee.error ?? "Earth Engine is unavailable.")
-                          : "Add an Earth Engine service account to turn this on. The README shows how."}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -266,7 +279,7 @@ export default function Atlas() {
                   role="tab"
                   aria-selected={mode === m}
                   disabled={disabled}
-                  title={disabled ? "Gain and loss need an Earth Engine dataset" : undefined}
+                  title={disabled ? "Gain and loss are only available for Global Mangrove Watch" : undefined}
                   onClick={() => setMode(m)}
                 >
                   {m === "extent" ? "Extent" : m === "change" ? "Gain & loss" : "Swipe"}

@@ -31,7 +31,7 @@ npm install
 npm run dev
 ```
 
-The Planetary Computer datasets work with no credentials. To work on the Earth Engine datasets, follow "Turning on Earth Engine" in the [README](README.md). Use your own service account, and never commit keys: `.env*` files and `*-key.json` files are git-ignored.
+No credentials are needed. For the Global Mangrove Watch layer, the app reads the published tiles by default. To test pipeline changes, build a small region yourself with `pipeline/build_tiles.py --bbox …` (see the README).
 
 Before you open a PR:
 
@@ -53,9 +53,9 @@ npm run build
 ## Adding a dataset
 
 1. Add an entry to `DATASETS` in `src/lib/datasets.ts`. Include years, resolution, citation, licence, source URL and `supportsChange`.
-2. Implement it in the provider module:
-   - `src/lib/server/ee.ts` for Google Earth Engine. Add a mask function that returns 1 = mangrove, 0 = not.
-   - `src/lib/server/mpc.ts` for Microsoft Planetary Computer. Add an expression such as `map==95`.
+2. Serve it without keys:
+   - **Data on Microsoft Planetary Computer:** add an expression such as `map==95` in `src/lib/server/mpc.ts`.
+   - **Other open data:** convert it to a static tile file in `pipeline/`, as for Global Mangrove Watch. The app must never need a private API key.
 3. Describe what "mangrove" means in that dataset in the README data table: the class, the threshold and any caveats.
 4. Only use data whose licence allows public display. Say so in the PR.
 

@@ -16,7 +16,7 @@ const body = Public_Sans({
 export const metadata: Metadata = {
   title: "Mangrove Atlas | Flora Carbon AI",
   description:
-    "An open-source map of where mangroves grew, year by year, built on Global Mangrove Watch, Google Earth Engine and Microsoft Planetary Computer.",
+    "An open-source map of where mangroves grew, year by year, built on Global Mangrove Watch and Microsoft Planetary Computer.",
 };
 
 export const viewport: Viewport = {

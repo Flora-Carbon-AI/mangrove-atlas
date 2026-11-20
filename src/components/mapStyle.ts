@@ -115,7 +115,7 @@ export function applyOverlay(map: MLMap, data: LayersResponse | null, opacity: n
     map.addSource(id, {
       type: "raster",
       tiles: src.tiles,
-      tileSize: 256,
+      tileSize: src.tileSize ?? 256,
       ...(src.bounds ? { bounds: src.bounds } : {}),
       ...(src.minzoom !== undefined ? { minzoom: src.minzoom } : {}),
       ...(src.maxzoom !== undefined ? { maxzoom: src.maxzoom } : {}),

@@ -12,7 +12,7 @@ body:
     id: source
     attributes:
       label: Where is it hosted?
-      description: Earth Engine asset ID, Planetary Computer collection, Zenodo DOI or another link.
+      description: Zenodo DOI, Planetary Computer collection or another public download link.
     validations:
       required: true
   - type: input

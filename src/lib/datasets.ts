@@ -1,14 +1,14 @@
 /**
  * Dataset registry shared by the client and the API routes.
  *
- * Two providers are supported:
- *  - "gee": Google Earth Engine (needs a service account, see README).
- *  - "mpc": Microsoft Planetary Computer (public, no credentials).
+ * Two providers, neither needs credentials:
+ *  - "static": a prebuilt tile archive decoded in the browser (src/lib/gmw.ts).
+ *  - "mpc": Microsoft Planetary Computer, proxied by the /api routes.
  */
 
-export type Provider = "gee" | "mpc";
+export type Provider = "static" | "mpc";
 
-export type DatasetId = "gmw-v3" | "cgmd-30" | "esa-cci-lc" | "esa-worldcover";
+export type DatasetId = "gmw-v4" | "esa-cci-lc" | "esa-worldcover";
 
 export interface Dataset {
   id: DatasetId;
@@ -33,38 +33,22 @@ const range = (a: number, b: number) =>
   Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
 export const DATASETS: Record<DatasetId, Dataset> = {
-  "gmw-v3": {
-    id: "gmw-v3",
-    provider: "gee",
-    name: "Global Mangrove Watch v3",
+  "gmw-v4": {
+    id: "gmw-v4",
+    provider: "static",
+    name: "Global Mangrove Watch v4.1",
     summary:
-      "Mangrove extent mapped from ALOS PALSAR and Landsat. The reference dataset for mangrove change.",
-    resolution: "25 m",
-    years: [1996, 2007, 2008, 2009, 2010, 2015, 2016, 2017, 2018, 2019, 2020],
-    minZoom: 0,
-    supportsChange: true,
-    maxStatsSpanDeg: 8,
-    citation:
-      "Bunting, P. et al. (2022). Global Mangrove Extent Change 1996–2020: Global Mangrove Watch Version 3.0. Remote Sensing 14(15), 3657.",
-    license: "CC BY 4.0",
-    sourceUrl: "https://doi.org/10.5281/zenodo.6894273",
-  },
-  "cgmd-30": {
-    id: "cgmd-30",
-    provider: "gee",
-    name: "Global Annual Mangrove Extent",
-    summary:
-      "Yearly mangrove polygons from 1984 to 2023, mapped from Landsat by The Mangrove Lab (Continuous Global Mangrove Dynamics).",
+      "Yearly mangrove extent from 1985 to 2025, mapped from Landsat and radar. The reference dataset for mangrove change.",
     resolution: "30 m",
-    years: range(1984, 2023),
+    years: range(1985, 2025),
     minZoom: 0,
     supportsChange: true,
-    maxStatsSpanDeg: 6,
+    // Stats are summed from tiles in the browser, so any view size works.
+    maxStatsSpanDeg: 360,
     citation:
-      "Zhang, Z., Murray, N., Song, X., … & Friess, D. (2026). Unexpected expansion and regrowth in Earth's mangrove forests over the past four decades. Science. doi:10.1126/science.aec9773",
+      "Bunting, P. et al. (2026). Global Mangrove Watch: Timeseries of Mangrove Extent (Version 4.1.12). Zenodo. doi:10.5281/zenodo.21346457",
     license: "CC BY 4.0",
-    sourceUrl:
-      "https://developers.google.com/earth-engine/datasets/catalog/projects_mangrovedatahub2_assets_CGMD-Extent30",
+    sourceUrl: "https://doi.org/10.5281/zenodo.21346457",
   },
   "esa-cci-lc": {
     id: "esa-cci-lc",
@@ -101,8 +85,7 @@ export const DATASETS: Record<DatasetId, Dataset> = {
 };
 
 export const DATASET_ORDER: DatasetId[] = [
-  "gmw-v3",
-  "cgmd-30",
+  "gmw-v4",
   "esa-cci-lc",
   "esa-worldcover",
 ];

@@ -34,7 +34,7 @@ yarn-error.log*
 .env*
 !.env.example
 
-# Earth Engine service account keys
+# Credential files (the app needs none; keep them out of git)
 *service-account*.json
 *-key.json
 
@@ -48,3 +48,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated mangrove tile archives (hosted on Cloudflare R2, not in git)
+/public/data/
+*.pmtiles
+
+# Pipeline working files
+/pipeline/.venv/
+__pycache__/
