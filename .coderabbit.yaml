@@ -1,0 +1,35 @@
+# CodeRabbit review settings. https://docs.coderabbit.ai/getting-started/configure-coderabbit
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-GB
+reviews:
+  profile: chill
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!package-lock.json"
+    - "!public/vendor/**"
+  path_instructions:
+    - path: "src/lib/server/**"
+      instructions: >-
+        Server-only code. Check that provider errors are logged rather than
+        returned to the browser, and that no secrets or API keys are introduced:
+        the project's rule is that the app needs none.
+    - path: "src/lib/gmw.ts"
+      instructions: >-
+        Decodes the MGA1 tile format documented in pipeline/build_tiles.py.
+        Check byte offsets, bit order (bit i = year 1985 + i, little-endian)
+        and that the tile cache stays bounded.
+    - path: "pipeline/**"
+      instructions: >-
+        Builds public data from Global Mangrove Watch (CC BY 4.0). Check that
+        areas are computed from native-resolution pixels, that attribution is
+        kept, and that nothing downloads data with unclear licensing.
+    - path: "src/data/**"
+      instructions: >-
+        Published datasets. Every record needs a source and a licence that
+        allows public redistribution.
+chat:
+  auto_reply: true
